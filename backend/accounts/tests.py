@@ -121,3 +121,65 @@ class Module2AuthRbacTests(TestCase):
         res_admin = self.client.get(url)
         self.assertEqual(res_admin.status_code, 200)
         self.assertGreaterEqual(res_admin.json()['count'], 6)
+
+
+class Module3UserManagementTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='sysadmin', email='sysadmin@tenderx.com', password='Password123!',
+            role=UserRole.SUPER_ADMIN, first_name='System', last_name='Administrator'
+        )
+        self.evaluator = User.objects.create_user(
+            username='eval1', email='evaluator1@tenderx.com', password='Password123!',
+            role=UserRole.EVALUATOR, first_name='Sarah', last_name='Conner'
+        )
+
+    def test_user_list_filtering_and_metrics(self):
+        """Test listing users with search query and status filtering."""
+        url = reverse('user_list_create')
+        response = self.client.get(url, {'search': 'Sarah'})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('metrics', data)
+        self.assertEqual(data['count'], 1)
+        self.assertEqual(data['users'][0]['email'], 'evaluator1@tenderx.com')
+
+    def test_user_suspend_and_activate(self):
+        """Test account suspension and activation endpoints."""
+        url_suspend = reverse('user_suspend', kwargs={'pk': self.evaluator.pk})
+        res_suspend = self.client.post(url_suspend)
+        self.assertEqual(res_suspend.status_code, 200)
+        self.evaluator.refresh_from_db()
+        self.assertEqual(self.evaluator.status, 'SUSPENDED')
+
+        url_activate = reverse('user_activate', kwargs={'pk': self.evaluator.pk})
+        res_activate = self.client.post(url_activate)
+        self.assertEqual(res_activate.status_code, 200)
+        self.evaluator.refresh_from_db()
+        self.assertEqual(self.evaluator.status, 'ACTIVE')
+
+    def test_user_activity_log(self):
+        """Test fetching audit activity timeline for a user."""
+        from accounts.models import UserActivity
+        UserActivity.objects.create(
+            user=self.evaluator, action="Evaluated Tender Bid #402", resource="Tender #402"
+        )
+        url = reverse('user_activity', kwargs={'pk': self.evaluator.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['action'], "Evaluated Tender Bid #402")
+
+    def test_roles_and_permissions_api(self):
+        """Test roles list and permissions list endpoints."""
+        url_roles = reverse('roles_list')
+        res_roles = self.client.get(url_roles)
+        self.assertEqual(res_roles.status_code, 200)
+        self.assertGreaterEqual(len(res_roles.json()), 6)
+
+        url_perms = reverse('permissions_list')
+        res_perms = self.client.get(url_perms)
+        self.assertEqual(res_perms.status_code, 200)
+        self.assertGreaterEqual(len(res_perms.json()), 12)
+

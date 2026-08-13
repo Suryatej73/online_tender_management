@@ -1,3 +1,5 @@
+import datetime
+from django.db import models
 try:
     from rest_framework import serializers
 except ImportError:
@@ -8,15 +10,19 @@ except ImportError:
             self.instance = instance
             self._data = data or {}
             if instance is not None:
-                if many or (isinstance(instance, (list, tuple)) or hasattr(instance, '__iter__') and not hasattr(instance, 'email')):
-                    self.data = [
-                        {'id': str(getattr(u, 'id', '')), 'email': getattr(u, 'email', ''), 'role': getattr(u, 'role', 'VENDOR')}
-                        for u in instance
-                    ]
-                elif hasattr(instance, 'email'):
-                    self.data = {'id': str(getattr(instance, 'id', '')), 'email': instance.email, 'role': getattr(instance, 'role', 'VENDOR')}
+                def item_to_dict(item):
+                    if isinstance(item, dict): return item
+                    d = {'id': str(getattr(item, 'id', ''))}
+                    for attr in ['email', 'username', 'first_name', 'last_name', 'full_name', 'role', 'status', 'organization_name', 'phone_number', 'position_title', 'action', 'resource', 'details', 'ip_address', 'user_agent', 'device_type', 'location', 'is_active', 'is_email_verified', 'is_mfa_enabled', 'code', 'name', 'category', 'tax_id']:
+                        if hasattr(item, attr):
+                            val = getattr(item, attr)
+                            d[attr] = str(val) if hasattr(val, 'hex') or isinstance(val, (datetime.datetime, datetime.date)) else val
+                    return d
+
+                if many or (isinstance(instance, (list, tuple, models.QuerySet)) and not hasattr(instance, 'email')):
+                    self.data = [item_to_dict(u) for u in instance]
                 else:
-                    self.data = instance
+                    self.data = item_to_dict(instance)
             else:
                 self.data = data or {}
 
@@ -58,34 +64,137 @@ except ImportError:
         CharField = DummyField
         EmailField = DummyField
         UUIDField = DummyField
+        SerializerMethodField = DummyField
         class ValidationError(Exception): pass
 
-
-
 from django.contrib.auth import get_user_model
-try:
-    from django.contrib.auth.password_validation import validate_password
-except ImportError:
-    def validate_password(p): return p
-
-from .models import UserRole, UserSession, EmailVerificationToken, PasswordResetToken
-
+from django.contrib.auth.password_validation import validate_password
+from .models import (
+    UserRole, UserStatus, Organization, Department, Permission,
+    RolePermission, UserSession, UserActivity, LoginAttempt,
+    EmailVerificationToken, PasswordResetToken
+)
 
 User = get_user_model()
+
+
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    user_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Organization
+        fields = ['id', 'name', 'code', 'org_type', 'tax_id', 'user_count', 'created_at']
+
+    def get_user_count(self, obj):
+        return obj.users.count() if hasattr(obj, 'users') else 0
+
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
+
+    class Meta:
+        model = Department
+        fields = ['id', 'organization', 'organization_name', 'name', 'code', 'created_at']
+
+
+class PermissionSerializer(serializers.ModelSerializer):
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+
+    class Meta:
+        model = Permission
+        fields = ['id', 'code', 'name', 'category', 'category_display', 'description']
+
+
+class RolePermissionSerializer(serializers.ModelSerializer):
+    permission_details = PermissionSerializer(source='permission', read_only=True)
+
+    class Meta:
+        model = RolePermission
+        fields = ['id', 'role', 'permission', 'permission_details', 'created_at']
+
+
+class UserActivitySerializer(serializers.ModelSerializer):
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+
+    class Meta:
+        model = UserActivity
+        fields = [
+            'id', 'user', 'user_email', 'user_name', 'action',
+            'resource', 'details', 'ip_address', 'user_agent',
+            'status', 'timestamp'
+        ]
+        read_only_fields = ['id', 'timestamp']
+
+
+class UserSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserSession
+        fields = [
+            'id', 'ip_address', 'user_agent', 'device_type', 'location',
+            'is_active', 'created_at', 'last_activity'
+        ]
+        read_only_fields = ['id', 'ip_address', 'user_agent', 'device_type', 'location', 'is_active', 'created_at', 'last_activity']
 
 
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    organization_title = serializers.CharField(source='effective_organization_name', read_only=True)
+    department_title = serializers.CharField(source='effective_department_name', read_only=True)
+    profile_completion_rate = serializers.ReadOnlyField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'username', 'first_name', 'last_name', 'full_name',
-            'role', 'role_display', 'organization_name', 'phone_number',
-            'is_email_verified', 'is_mfa_enabled', 'created_at', 'updated_at'
+            'role', 'role_display', 'status', 'status_display',
+            'organization', 'organization_title', 'organization_name',
+            'department', 'department_title', 'department_name',
+            'phone_number', 'position_title', 'avatar_url',
+            'is_email_verified', 'is_mfa_enabled', 'is_deleted',
+            'last_login_ip', 'last_login', 'profile_completion_rate',
+            'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'is_email_verified', 'is_mfa_enabled', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'is_email_verified', 'is_mfa_enabled', 'created_at', 'updated_at', 'last_login', 'last_login_ip']
+
+
+class UserCreateUpdateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
+
+    class Meta:
+        model = User
+        fields = [
+            'email', 'username', 'first_name', 'last_name', 'role', 'status',
+            'organization', 'organization_name', 'department', 'department_name',
+            'phone_number', 'position_title', 'password', 'is_email_verified'
+        ]
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', 'DefaultPass123!')
+        if 'username' not in validated_data or not validated_data['username']:
+            username = validated_data['email'].split('@')[0]
+            count = User.objects.filter(username__startswith=username).count()
+            if count > 0:
+                username = f"{username}_{count + 1}"
+            validated_data['username'] = username
+
+        user = User.objects.create_user(
+            password=password,
+            **validated_data
+        )
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -108,7 +217,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
         
-        # Use email prefix if username is not explicitly provided
         username = validated_data.get('email').split('@')[0]
         count = User.objects.filter(username=username).count()
         if count > 0:
@@ -154,12 +262,3 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             raise serializers.ValidationError({"new_password": "Passwords do not match."})
         return attrs
 
-
-class UserSessionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserSession
-        fields = [
-            'id', 'ip_address', 'user_agent', 'device_type',
-            'is_active', 'created_at', 'last_activity'
-        ]
-        read_only_fields = ['id', 'ip_address', 'user_agent', 'device_type', 'is_active', 'created_at', 'last_activity']
