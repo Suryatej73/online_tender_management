@@ -105,6 +105,20 @@ npm install
 npm run dev
 ```
 
+#### Windows PowerShell notes
+
+If PowerShell reports that `npm.ps1` cannot be loaded because script execution is
+disabled, use the Windows command shim instead:
+
+```powershell
+npm.cmd install
+npm.cmd run dev
+```
+
+The Docker commands above require Docker Desktop to be installed and running.
+If `docker` is not recognized, install Docker Desktop (or add its CLI to your
+`PATH`) before using Docker Compose.
+
 ---
 
 ## 🔌 Module 1 API Endpoints
