@@ -32,12 +32,15 @@ export default function AddEditUserModal({ user, onClose, onSuccess, organizatio
 
     setLoading(true);
     try {
+      const payload = { ...formData };
+      if (!payload.password) delete payload.password;
+      if (!payload.organization) delete payload.organization;
+      if (!payload.department) delete payload.department;
+
       if (isEditing) {
-        const payload = { ...formData };
-        if (!payload.password) delete payload.password;
         await usersApi.updateUser(user.id, payload);
       } else {
-        await usersApi.createUser(formData);
+        await usersApi.createUser(payload);
       }
       onSuccess();
       onClose();
@@ -46,6 +49,7 @@ export default function AddEditUserModal({ user, onClose, onSuccess, organizatio
     } finally {
       setLoading(false);
     }
+
   };
 
   return (

@@ -1,11 +1,15 @@
-const API_BASE_URL = '/api/v1';
+const API_BASE_URL = 'http://localhost:8000/api/v1/auth';
 
 async function handleResponse(response) {
   if (!response.ok) {
     let errorMsg = 'API Request failed';
     try {
       const errorData = await response.json();
-      errorMsg = errorData.error || errorData.message || JSON.stringify(errorData);
+      if (typeof errorData === 'object' && errorData !== null) {
+        errorMsg = errorData.error || errorData.detail || errorData.message || Object.entries(errorData).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('; ');
+      } else {
+        errorMsg = String(errorData);
+      }
     } catch (e) {
       errorMsg = `HTTP Error ${response.status}: ${response.statusText}`;
     }
@@ -15,7 +19,16 @@ async function handleResponse(response) {
 }
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('access_token');
+  let token = localStorage.getItem('access_token');
+  if (!token) {
+    const tenderxTokens = localStorage.getItem('tenderx_tokens');
+    if (tenderxTokens) {
+      try {
+        const parsed = JSON.parse(tenderxTokens);
+        token = parsed.access || parsed.token;
+      } catch (e) {}
+    }
+  }
   return {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
