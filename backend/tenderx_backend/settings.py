@@ -87,7 +87,11 @@ POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', os.getenv('DB_PASSWORD', 'ten
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', os.getenv('DB_HOST', 'db'))
 POSTGRES_PORT = os.getenv('POSTGRES_PORT', os.getenv('DB_PORT', '5432'))
 
-if os.getenv('USE_SQLITE', 'False').lower() == 'true':
+# A direct ``python manage.py runserver`` command should work without Docker.
+# Docker Compose explicitly sets USE_SQLITE=False and supplies PostgreSQL.
+USE_SQLITE = os.getenv('USE_SQLITE', 'True').lower() == 'true'
+
+if USE_SQLITE:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',

@@ -89,9 +89,14 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-USE_SQLITE=True python manage.py test
-USE_SQLITE=True python manage.py runserver
+python manage.py migrate
+python manage.py test
+python manage.py runserver
 ```
+
+The backend uses SQLite by default for local VS Code development. Docker Compose
+explicitly switches to PostgreSQL. If port 8000 is already in use, stop the
+existing Django terminal with `Ctrl+C`, or run `python manage.py runserver 8001`.
 
 ### Frontend Setup
 ```bash

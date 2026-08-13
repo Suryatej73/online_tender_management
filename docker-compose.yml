@@ -43,6 +43,7 @@ services:
       - "8000:8000"
     environment:
       - DEBUG=True
+      - USE_SQLITE=False
       - SECRET_KEY=${SECRET_KEY:-django-insecure-tenderx-module1-default-key-change-in-prod}
       - POSTGRES_DB=${POSTGRES_DB:-tenderx_db}
       - POSTGRES_USER=${POSTGRES_USER:-tenderx_user}
@@ -67,6 +68,7 @@ services:
       - ./backend:/app
     environment:
       - DEBUG=True
+      - USE_SQLITE=False
       - SECRET_KEY=${SECRET_KEY:-django-insecure-tenderx-module1-default-key-change-in-prod}
       - POSTGRES_DB=${POSTGRES_DB:-tenderx_db}
       - POSTGRES_USER=${POSTGRES_USER:-tenderx_user}
