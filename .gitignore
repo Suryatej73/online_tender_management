@@ -1,0 +1,32 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Django & Databases
+*.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# Envs & OS
+.env
+.env.local
+.vscode/
+.idea/
+.DS_Store
+
+# Docker volumes
+.postgres_data/
+.redis_data/

@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: tenderx_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tenderx_db}
+      POSTGRES_USER: ${POSTGRES_USER:-tenderx_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tenderx_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tenderx_user} -d ${POSTGRES_DB:-tenderx_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: tenderx_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tenderx_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-tenderx-module1-default-key-change-in-prod}
+      - POSTGRES_DB=${POSTGRES_DB:-tenderx_db}
+      - POSTGRES_USER=${POSTGRES_USER:-tenderx_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-tenderx_password}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - REDIS_URL=redis://redis:6379/1
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tenderx_celery_worker
+    command: celery -A tenderx_backend worker -l info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-tenderx-module1-default-key-change-in-prod}
+      - POSTGRES_DB=${POSTGRES_DB:-tenderx_db}
+      - POSTGRES_USER=${POSTGRES_USER:-tenderx_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-tenderx_password}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - REDIS_URL=redis://redis:6379/1
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - backend
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tenderx_frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
