@@ -9,6 +9,7 @@ import SplitScreenAuth from './components/auth/SplitScreenAuth';
 import UserManagementDashboard from './components/users/UserManagementDashboard';
 import PermissionMatrix from './components/users/PermissionMatrix';
 import AddEditUserModal from './components/users/AddEditUserModal';
+import TenderManagementDashboard from './components/tenders/TenderManagementDashboard';
 import {
   ShieldCheck,
   Users,
@@ -665,34 +666,9 @@ function TenderXApp() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              style={{ padding: '2rem 0', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+              style={{ padding: '2rem 0' }}
             >
-              <motion.div
-                {...scrollFadeUp}
-                transition={{ type: 'spring', stiffness: 150, damping: 20 }}
-                className="glass-card"
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                  <div>
-                    <h3 style={{ fontSize: '1.3rem', fontWeight: '800', letterSpacing: '-0.02em' }}>Tenders & Bill of Quantities (BOQ) Catalog</h3>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Browse public tender notices, BOQ specifications, and bidding deadlines</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-faint)' }}>
-                    <GripVertical size={14} />
-                    <span>Drag to prioritize</span>
-                  </div>
-                </div>
-
-                <Reorder.Group
-                  axis="y"
-                  values={tenderOrder}
-                  onReorder={setTenderOrder}
-                  className="grid-3"
-                  style={{ gap: '1.25rem', padding: 0, margin: 0 }}
-                >
-                  {tenderOrder.map((t) => <TenderCard key={t.id} tender={t} />)}
-                </Reorder.Group>
-              </motion.div>
+              <TenderManagementDashboard />
             </motion.div>
           )}
 

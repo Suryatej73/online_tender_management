@@ -133,7 +133,7 @@ If `docker` is not recognized, install Docker Desktop (or add its CLI to your
 - [x] **M1: Project Setup** (Docker, Git, CI/CD, Django + React Init) — [*Docs*](docs/M1_PROJECT_SETUP.md)
 - [x] **M2: User Authentication & Role-Based Access Control (RBAC)** — [*Docs*](docs/M2_AUTH_AND_RBAC.md)
 - [x] **M3: Advanced User Management & Authentication UI** — [*Docs*](docs/M3_USER_MANAGEMENT_AND_AUTH_UI.md)
-- [ ] **M4: Tender Creation & BOQ Specification Management**
+- [x] **M4: Tender Creation & BOQ Specification Management** — [*Docs*](docs/M4_TENDER_MANAGEMENT.md)
 - [ ] **M5: Encrypted Bid Submission Engine**
 - [ ] **M6: Automated & Manual Tender Evaluation**
 - [ ] **M7: Real-time Reverse Auction Engine**
