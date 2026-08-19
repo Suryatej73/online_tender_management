@@ -1,407 +1,664 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import SystemStatus from './components/SystemStatus';
 import AuthModal from './components/AuthModal';
 import MFASetup from './components/MFASetup';
 import SessionManager from './components/SessionManager';
-import RbacInspector from './components/RbacInspector';
 import SplitScreenAuth from './components/auth/SplitScreenAuth';
 import UserManagementDashboard from './components/users/UserManagementDashboard';
 import PermissionMatrix from './components/users/PermissionMatrix';
 import AddEditUserModal from './components/users/AddEditUserModal';
-import { 
-  ShieldCheck, 
-  Users, 
+import {
+  ShieldCheck,
+  Users,
   User as UserIcon,
   LogOut,
   KeyRound,
-  Shield,
   Smartphone,
-  Monitor,
   LayoutDashboard,
-  Lock,
-  Layers,
   FileText,
   Gavel,
   CheckCircle2,
-  TrendingUp,
   Award,
   Search,
   Plus,
   Building,
-  Bell,
   Clock,
-  ExternalLink
+  ArrowRight,
+  TrendingUp,
+  Zap,
+  Lock,
+  Shield
 } from 'lucide-react';
 
-function TenderXApp() {
-  const { user, logout } = useAuth();
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [addUserModalOpen, setAddUserModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'tenders', 'bids', 'users', 'rbac', 'security'
+/* ── Animation Variants ── */
+const fadeUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -10 },
+};
 
-  // Sample Published Tenders Data for Enterprise Tender Catalog Preview
-  const [tenders] = useState([
-    {
-      id: "TDR-2026-8901",
-      title: "Supply & Installation of High-Performance Data Center Servers",
-      category: "IT Infrastructure & Hardware",
-      estimated_cost: "$1,250,000",
-      emd_amount: "$25,000",
-      publish_date: "2026-08-01",
-      submission_deadline: "2026-08-28",
-      status: "Published",
-      stage: "Two-Envelope Bidding",
-      organization: "Ministry of Digital Transformation"
-    },
-    {
-      id: "TDR-2026-8902",
-      title: "Construction of Smart Civil Highway Bypass & Toll Plaza",
-      category: "Civil Construction & Works",
-      estimated_cost: "$8,500,000",
-      emd_amount: "$170,000",
-      publish_date: "2026-07-15",
-      submission_deadline: "2026-08-25",
-      status: "Under Evaluation",
-      stage: "Technical Scoring",
-      organization: "National Highway Authority"
-    },
-    {
-      id: "TDR-2026-8903",
-      title: "Annual Maintenance Contract (AMC) for Renewable Solar Plant",
-      category: "Energy & Utilities",
-      estimated_cost: "$480,000",
-      emd_amount: "$9,600",
-      publish_date: "2026-08-10",
-      submission_deadline: "2026-09-05",
-      status: "Published",
-      stage: "Reverse Auction Eligible",
-      organization: "Green Energy Grid Ltd"
-    }
-  ]);
+const staggerContainer = {
+  animate: { transition: { staggerChildren: 0.06 } },
+};
+
+const scaleIn = {
+  initial: { opacity: 0, scale: 0.95 },
+  animate: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.98 },
+};
+
+/* ── Tab Configuration ── */
+const tabs = [
+  { id: 'dashboard', label: 'Procurement Dashboard', icon: LayoutDashboard },
+  { id: 'tenders', label: 'Tenders & BOQ Catalog', icon: FileText },
+  { id: 'bids', label: 'Bidding & Evaluation', icon: Gavel },
+  { id: 'users', label: 'User & Org Admin', icon: Users },
+  { id: 'rbac', label: 'RBAC Permissions', icon: ShieldCheck },
+  { id: 'security', label: 'Identity & Security', icon: KeyRound },
+];
+
+/* ── Sample Tenders ── */
+const sampleTenders = [
+  {
+    id: "TDR-2026-8901",
+    title: "Supply & Installation of High-Performance Data Center Servers",
+    category: "IT Infrastructure",
+    estimated_cost: "$1,250,000",
+    emd_amount: "$25,000",
+    publish_date: "2026-08-01",
+    submission_deadline: "2026-08-28",
+    status: "Published",
+    stage: "Two-Envelope Bidding",
+    organization: "Ministry of Digital Transformation",
+    color: "var(--primary)",
+  },
+  {
+    id: "TDR-2026-8902",
+    title: "Construction of Smart Civil Highway Bypass & Toll Plaza",
+    category: "Civil Construction",
+    estimated_cost: "$8,500,000",
+    emd_amount: "$170,000",
+    publish_date: "2026-07-15",
+    submission_deadline: "2026-08-25",
+    status: "Under Evaluation",
+    stage: "Technical Scoring",
+    organization: "National Highway Authority",
+    color: "var(--amber)",
+  },
+  {
+    id: "TDR-2026-8903",
+    title: "Annual Maintenance Contract (AMC) for Renewable Solar Plant",
+    category: "Energy & Utilities",
+    estimated_cost: "$480,000",
+    emd_amount: "$9,600",
+    publish_date: "2026-08-10",
+    submission_deadline: "2026-09-05",
+    status: "Published",
+    stage: "Reverse Auction Eligible",
+    organization: "Green Energy Grid Ltd",
+    color: "var(--emerald)",
+  }
+];
+
+/* ── Animated Header ── */
+function AnimatedHeader({ onOpenAuth, onOpenAddUser }) {
+  const { user, logout } = useAuth();
 
   return (
-    <div>
-      {/* Top Header Bar */}
-      <header style={{ 
-        borderBottom: '1px solid var(--border-muted)', 
-        background: 'rgba(15, 23, 42, 0.95)', 
-        backdropFilter: 'blur(16px)', 
-        position: 'sticky', 
-        top: 0, 
-        zIndex: 50 
-      }}>
-        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1.5rem' }}>
-          
-          {/* Logo & Platform Identity */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ 
-                background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)', 
-                width: '40px', 
-                height: '40px', 
-                borderRadius: '10px', 
-                display: 'flex', 
-                alignItems: 'center', 
+    <motion.header
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      style={{
+        borderBottom: '1px solid var(--border-subtle)',
+        background: 'rgba(5, 10, 24, 0.85)',
+        backdropFilter: 'blur(20px) saturate(1.4)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+      }}
+    >
+      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.8rem 1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+            <motion.div
+              whileHover={{ scale: 1.05, rotate: -2 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              style={{
+                background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)',
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
-                fontWeight: '800',
-                fontSize: '1.3rem',
+                fontWeight: '900',
+                fontSize: '1.1rem',
                 color: '#ffffff',
-                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)'
-              }}>
-                tX
-              </div>
-              <div>
-                <h1 style={{ fontSize: '1.25rem', fontWeight: '800', letterSpacing: '-0.02em', background: 'linear-gradient(to right, #ffffff, #93c5fd)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  tenderX
-                </h1>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Enterprise Online Tender Management System</p>
-              </div>
-            </div>
-
-            {/* Quick Search Bar */}
-            <div style={{ position: 'relative', width: '280px', display: 'none', md: 'block' }}>
-              <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '0.65rem', color: 'var(--text-dim)' }} />
-              <input 
-                type="text" 
-                placeholder="Search Tenders, BOQ, Vendors..." 
-                style={{ width: '100%', padding: '0.45rem 0.75rem 0.45rem 2.2rem', borderRadius: '8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-muted)', color: '#ffffff', fontSize: '0.825rem' }}
-              />
-            </div>
-          </div>
-
-          {/* User Controls & Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <button 
-              onClick={() => setAddUserModalOpen(true)} 
-              className="btn-action" 
-              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', background: 'linear-gradient(135deg, var(--emerald) 0%, var(--cyan) 100%)' }}
+                boxShadow: '0 4px 20px rgba(99, 102, 241, 0.4)',
+                cursor: 'pointer',
+              }}
             >
-              <Plus size={15} /> Add User
-            </button>
-
-            {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderLeft: '1px solid var(--border-muted)', paddingLeft: '0.85rem' }}>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '700' }}>{user.full_name || user.email}</div>
-                  <span className="badge badge-primary" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}>
-                    {user.role}
-                  </span>
-                </div>
-                <button 
-                  onClick={logout} 
-                  style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.5rem', borderRadius: '8px', cursor: 'pointer', display: 'flex' }}
-                  title="Sign Out"
-                >
-                  <LogOut size={16} />
-                </button>
-              </div>
-            ) : (
-              <button onClick={() => setAuthModalOpen(true)} className="btn-action" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}>
-                <UserIcon size={15} /> Identity Sign In
-              </button>
-            )}
+              tX
+            </motion.div>
+            <div>
+              <h1 style={{ fontSize: '1.3rem', fontWeight: '900', letterSpacing: '-0.03em' }} className="text-gradient-brand">
+                tenderX
+              </h1>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', letterSpacing: '0.02em' }}>Enterprise Tender Management</p>
+            </div>
           </div>
+
+          <motion.div
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 300, damping: 25 }}
+            style={{ position: 'relative', width: '280px' }}
+            className="hidden-mobile"
+          >
+            <Search size={15} style={{ position: 'absolute', left: '0.8rem', top: '0.6rem', color: 'var(--text-faint)' }} />
+            <input
+              type="text"
+              placeholder="Search tenders, vendors, BOQ..."
+              style={{
+                width: '100%',
+                padding: '0.5rem 0.85rem 0.5rem 2.4rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
+                fontSize: '0.8rem',
+                outline: 'none',
+                transition: 'all 200ms ease',
+              }}
+              onFocus={(e) => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-surface)'; }}
+              onBlur={(e) => { e.target.style.borderColor = 'var(--border-subtle)'; e.target.style.boxShadow = 'none'; }}
+            />
+          </motion.div>
         </div>
 
-        {/* Primary Platform Navigation Tabs */}
-        <div style={{ background: 'rgba(9, 13, 22, 0.95)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-          <div className="container" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', padding: '0.4rem 1.5rem' }}>
-            <button 
-              onClick={() => setActiveTab('dashboard')} 
-              style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'dashboard' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'dashboard' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={onOpenAddUser}
+            className="btn-action"
+            style={{ padding: '0.5rem 0.9rem', fontSize: '0.8rem', background: 'linear-gradient(135deg, var(--emerald) 0%, var(--accent) 100%)' }}
+          >
+            <Plus size={15} /> Add User
+          </motion.button>
+
+          {user ? (
+            <motion.div
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '1rem' }}
             >
-              <LayoutDashboard size={16} /> Procurement Dashboard
-            </button>
-            <button 
-              onClick={() => setActiveTab('tenders')} 
-              style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'tenders' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'tenders' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>{user.full_name || user.email}</div>
+                <span className="badge badge-primary" style={{ fontSize: '0.62rem', padding: '0.08rem 0.4rem' }}>
+                  {user.role}
+                </span>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.1, backgroundColor: 'rgba(251, 113, 133, 0.2)' }}
+                whileTap={{ scale: 0.9 }}
+                onClick={logout}
+                style={{
+                  background: 'var(--rose-surface)',
+                  border: '1px solid rgba(251, 113, 133, 0.2)',
+                  color: 'var(--rose)',
+                  padding: '0.5rem',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                }}
+                title="Sign Out"
+              >
+                <LogOut size={16} />
+              </motion.button>
+            </motion.div>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={onOpenAuth}
+              className="btn-action"
+              style={{ padding: '0.5rem 0.9rem', fontSize: '0.8rem' }}
             >
-              <FileText size={16} /> Tenders & BOQ Catalog
-            </button>
-            <button 
-              onClick={() => setActiveTab('bids')} 
-              style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'bids' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'bids' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
-            >
-              <Gavel size={16} /> Bidding & Evaluation
-            </button>
-            <button 
-              onClick={() => setActiveTab('users')} 
-              style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'users' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'users' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
-            >
-              <Users size={16} /> User & Org Administration
-            </button>
-            <button 
-              onClick={() => setActiveTab('rbac')} 
-              style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'rbac' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'rbac' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
-            >
-              <ShieldCheck size={16} /> RBAC Permissions Matrix
-            </button>
-            <button 
-              onClick={() => setActiveTab('security')} 
-              style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'security' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'security' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
-            >
-              <KeyRound size={16} /> Identity & Security Portal
-            </button>
-          </div>
+              <UserIcon size={15} /> Sign In
+            </motion.button>
+          )}
         </div>
-      </header>
+      </div>
+    </motion.header>
+  );
+}
 
-      {/* Main Content Area */}
-      <main className="container" style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', marginTop: '1.5rem' }}>
-        
-        {/* Executive Dashboard View */}
-        {activeTab === 'dashboard' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-            
-            {/* Executive Stat Cards */}
-            <div className="grid-4">
-              <div className="glass-card" style={{ padding: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Active Tenders</span>
-                  <FileText size={18} color="var(--primary)" />
-                </div>
-                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>24</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--emerald)', marginTop: '0.35rem' }}>↑ 4 new published this week</div>
-              </div>
+/* ── Animated Tab Bar ── */
+function AnimatedTabBar({ activeTab, setActiveTab }) {
+  return (
+    <div style={{
+      background: 'rgba(5, 10, 24, 0.7)',
+      borderBottom: '1px solid var(--border-subtle)',
+      backdropFilter: 'blur(12px)',
+    }}>
+      <div className="container" style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', padding: '0.4rem 1.5rem' }}>
+        {tabs.map((tab, i) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <motion.button
+              key={tab.id}
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04, type: 'spring', stiffness: 300, damping: 25 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                position: 'relative',
+                padding: '0.65rem 1.15rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'transparent',
+                border: 'none',
+                color: isActive ? '#ffffff' : 'var(--text-muted)',
+                fontWeight: isActive ? '700' : '600',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                whiteSpace: 'nowrap',
+                transition: 'color 200ms ease',
+              }}
+            >
+              {isActive && (
+                <motion.div
+                  layoutId="activeTab"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'var(--primary)',
+                    borderRadius: 'var(--radius-md)',
+                    zIndex: -1,
+                  }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+              <Icon size={15} /> {tab.label}
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-              <div className="glass-card" style={{ padding: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Submitted Bids</span>
-                  <Gavel size={18} color="var(--cyan)" />
-                </div>
-                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>142</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--cyan)', marginTop: '0.35rem' }}>Encrypted & Tamper-Proof</div>
-              </div>
+/* ── Dashboard Stats ── */
+const stats = [
+  { label: 'Active Tenders', value: '24', change: '+4 this week', icon: FileText, color: 'var(--primary)', glow: 'var(--primary-glow)' },
+  { label: 'Submitted Bids', value: '142', change: 'Encrypted & tamper-proof', icon: Gavel, color: 'var(--cyan)', glow: 'var(--cyan-glow)' },
+  { label: 'Total Awarded', value: '$18.4M', change: '12 procurement contracts', icon: Award, color: 'var(--emerald)', glow: 'var(--emerald-glow)' },
+  { label: 'Registered Vendors', value: '380', change: 'Verified org profiles', icon: Building, color: 'var(--purple)', glow: 'var(--purple-glow)' },
+];
 
-              <div className="glass-card" style={{ padding: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Awarded Value</span>
-                  <Award size={18} color="var(--emerald)" />
-                </div>
-                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>$18.4M</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--emerald)', marginTop: '0.35rem' }}>across 12 procurement contracts</div>
-              </div>
+function StatCard({ stat, index }) {
+  const Icon = stat.icon;
+  return (
+    <motion.div
+      variants={fadeUp}
+      whileHover={{ scale: 1.02, y: -2 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+      className="glass-card"
+      style={{ padding: '1.35rem', cursor: 'default' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>{stat.label}</span>
+        <div style={{
+          padding: '0.4rem',
+          borderRadius: 'var(--radius-sm)',
+          background: `${stat.color}15`,
+          color: stat.color,
+          display: 'flex',
+        }}>
+          <Icon size={18} />
+        </div>
+      </div>
+      <div style={{ fontSize: '1.85rem', fontWeight: '900', letterSpacing: '-0.03em' }}>{stat.value}</div>
+      <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.3rem', fontWeight: '500' }}>
+        {stat.change}
+      </div>
+    </motion.div>
+  );
+}
 
-              <div className="glass-card" style={{ padding: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Registered Vendors</span>
-                  <Building size={18} color="var(--accent)" />
-                </div>
-                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>380</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '0.35rem' }}>Verified Org Profiles</div>
-              </div>
-            </div>
+/* ── Tender Table Row ── */
+function TenderRow({ tender, index }) {
+  return (
+    <motion.tr
+      variants={fadeUp}
+      whileHover={{ backgroundColor: 'rgba(99, 102, 241, 0.04)' }}
+      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+    >
+      <td className="code-font" style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: 'var(--accent)' }}>{tender.id}</td>
+      <td style={{ padding: '0.85rem 1rem' }}>
+        <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{tender.title}</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.15rem' }}>{tender.organization}</div>
+      </td>
+      <td style={{ padding: '0.85rem 1rem' }}>
+        <span className="badge badge-primary">{tender.category}</span>
+      </td>
+      <td style={{ padding: '0.85rem 1rem', fontWeight: '700', color: 'var(--text-primary)' }}>{tender.estimated_cost}</td>
+      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>{tender.emd_amount}</td>
+      <td className="code-font" style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: 'var(--amber)' }}>{tender.submission_deadline}</td>
+      <td style={{ padding: '0.85rem 1rem' }}>
+        <span className={`badge ${tender.status === 'Published' ? 'badge-success' : 'badge-warning'}`}>
+          {tender.status}
+        </span>
+      </td>
+    </motion.tr>
+  );
+}
 
-            {/* Procurement Tenders Overview Table Preview */}
-            <div className="glass-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800' }}>Recent Procurement Opportunities & Status</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Active public tenders open for bidding</p>
-                </div>
-                <button onClick={() => setActiveTab('tenders')} className="btn-action" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}>
-                  View All Tenders
-                </button>
-              </div>
+/* ── Tender Card ── */
+function TenderCard({ tender }) {
+  return (
+    <motion.div
+      variants={fadeUp}
+      whileHover={{ scale: 1.01, y: -3 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+      className="glass-card"
+      style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'var(--bg-card)', cursor: 'pointer' }}
+    >
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
+          <span className="code-font" style={{ fontSize: '0.78rem', color: tender.color, fontWeight: '700' }}>{tender.id}</span>
+          <span className={`badge ${tender.status === 'Published' ? 'badge-success' : 'badge-warning'}`}>{tender.status}</span>
+        </div>
+        <h4 style={{ fontSize: '1rem', fontWeight: '750', marginBottom: '0.5rem', lineHeight: '1.35', color: 'var(--text-primary)' }}>{tender.title}</h4>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>{tender.organization}</p>
+      </div>
+      <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'var(--text-dim)' }}>Estimated Cost:</span>
+          <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{tender.estimated_cost}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'var(--text-dim)' }}>EMD Deposit:</span>
+          <span style={{ color: 'var(--text-secondary)' }}>{tender.emd_amount}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'var(--text-dim)' }}>Deadline:</span>
+          <span className="code-font" style={{ color: 'var(--amber)', fontWeight: '600' }}>{tender.submission_deadline}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border-muted)', color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '0.75rem' }}>Tender ID</th>
-                      <th style={{ padding: '0.75rem' }}>Title & Description</th>
-                      <th style={{ padding: '0.75rem' }}>Category</th>
-                      <th style={{ padding: '0.75rem' }}>Est. Value</th>
-                      <th style={{ padding: '0.75rem' }}>EMD Fee</th>
-                      <th style={{ padding: '0.75rem' }}>Deadline</th>
-                      <th style={{ padding: '0.75rem' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tenders.map((t) => (
-                      <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <td style={{ padding: '0.75rem' }} className="code-font">{t.id}</td>
-                        <td style={{ padding: '0.75rem' }}>
-                          <div style={{ fontWeight: '700' }}>{t.title}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t.organization}</div>
-                        </td>
-                        <td style={{ padding: '0.75rem' }}>
-                          <span className="badge badge-primary">{t.category}</span>
-                        </td>
-                        <td style={{ padding: '0.75rem', fontWeight: '700' }}>{t.estimated_cost}</td>
-                        <td style={{ padding: '0.75rem' }}>{t.emd_amount}</td>
-                        <td style={{ padding: '0.75rem' }} className="code-font">{t.submission_deadline}</td>
-                        <td style={{ padding: '0.75rem' }}>
-                          <span className={`badge ${t.status === 'Published' ? 'badge-success' : 'badge-warning'}`}>
-                            {t.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+/* ══════════════════════════════════════════════════════════════
+   Main TenderX Application
+   ══════════════════════════════════════════════════════════════ */
 
-            {/* Infrastructure Monitor */}
-            <SystemStatus />
-          </div>
-        )}
+function TenderXApp() {
+  const { user } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [addUserModalOpen, setAddUserModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
 
-        {/* Tenders & BOQ Catalog View */}
-        {activeTab === 'tenders' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div className="glass-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>Tenders & Bill of Quantities (BOQ) Catalog</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Browse public tender notices, BOQ specifications, and bidding deadlines</p>
-                </div>
-              </div>
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <AnimatedHeader onOpenAuth={() => setAuthModalOpen(true)} onOpenAddUser={() => setAddUserModalOpen(true)} />
 
-              <div className="grid-3" style={{ gap: '1.25rem' }}>
-                {tenders.map((t) => (
-                  <div key={t.id} className="glass-card" style={{ background: 'rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        <span className="code-font" style={{ fontSize: '0.8rem', color: 'var(--cyan)', fontWeight: '700' }}>{t.id}</span>
-                        <span className="badge badge-success">{t.status}</span>
-                      </div>
-                      <h4 style={{ fontSize: '1rem', fontWeight: '700', marginBottom: '0.5rem', lineHeight: '1.3' }}>{t.title}</h4>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>{t.organization}</p>
-                    </div>
+      {/* Tab Navigation */}
+      <AnimatedTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-                    <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '0.75rem', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Estimated Cost:</span>
-                        <span style={{ fontWeight: '700' }}>{t.estimated_cost}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>EMD Deposit:</span>
-                        <span>{t.emd_amount}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Deadline:</span>
-                        <span className="code-font" style={{ color: 'var(--amber)' }}>{t.submission_deadline}</span>
-                      </div>
-                    </div>
+      {/* Main Content */}
+      <main className="container" style={{ flex: 1 }}>
+        <AnimatePresence mode="wait">
+          {/* ── Dashboard View ── */}
+          {activeTab === 'dashboard' && (
+            <motion.div
+              key="dashboard"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ padding: '2rem 0' }}
+            >
+              {/* Hero Welcome */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                style={{ marginBottom: '2rem' }}
+              >
+                <h2 style={{ fontSize: '2rem', fontWeight: '900', letterSpacing: '-0.03em', marginBottom: '0.4rem' }} className="text-gradient">
+                  Procurement Command Center
+                </h2>
+                <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', maxWidth: '600px' }}>
+                  Real-time overview of active tenders, submitted bids, awarded contracts, and your procurement pipeline.
+                </p>
+              </motion.div>
+
+              {/* Stats Grid */}
+              <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid-4" style={{ marginBottom: '2rem' }}>
+                {stats.map((stat, i) => <StatCard key={i} stat={stat} index={i} />)}
+              </motion.div>
+
+              {/* Tenders Table */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 25 }}
+                className="glass-card"
+                style={{ marginBottom: '2rem' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '-0.02em' }}>Recent Procurement Opportunities</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Active public tenders open for bidding</p>
                   </div>
-                ))}
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setActiveTab('tenders')}
+                    className="btn-secondary"
+                    style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
+                  >
+                    View All <ArrowRight size={14} />
+                  </motion.button>
+                </div>
+
+                <div className="table-container" style={{ border: 'none', background: 'transparent' }}>
+                  <table className="enterprise-table">
+                    <thead>
+                      <tr>
+                        <th>Tender ID</th>
+                        <th>Title & Description</th>
+                        <th>Category</th>
+                        <th>Est. Value</th>
+                        <th>EMD Fee</th>
+                        <th>Deadline</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <motion.tbody variants={staggerContainer} initial="initial" animate="animate">
+                      {sampleTenders.map((t, i) => <TenderRow key={t.id} tender={t} index={i} />)}
+                    </motion.tbody>
+                  </table>
+                </div>
+              </motion.div>
+
+              {/* System Status */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35, type: 'spring', stiffness: 200, damping: 25 }}
+              >
+                <SystemStatus />
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* ── Tenders View ── */}
+          {activeTab === 'tenders' && (
+            <motion.div
+              key="tenders"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ padding: '2rem 0', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                className="glass-card"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: '800', letterSpacing: '-0.02em' }}>Tenders & Bill of Quantities (BOQ) Catalog</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Browse public tender notices, BOQ specifications, and bidding deadlines</p>
+                  </div>
+                </div>
+
+                <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid-3" style={{ gap: '1.25rem' }}>
+                  {sampleTenders.map((t) => <TenderCard key={t.id} tender={t} />)}
+                </motion.div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* ── Bids View ── */}
+          {activeTab === 'bids' && (
+            <motion.div
+              key="bids"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ padding: '3rem 0', display: 'flex', justifyContent: 'center' }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                className="glass-card glass-card--hero"
+                style={{ textAlign: 'center', maxWidth: '600px', width: '100%' }}
+              >
+                <motion.div
+                  animate={{ y: [0, -6, 0] }}
+                  transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+                  style={{ display: 'inline-flex', padding: '1rem', borderRadius: 'var(--radius-lg)', background: 'var(--primary-surface)', color: 'var(--primary)', marginBottom: '1.25rem' }}
+                >
+                  <Gavel size={36} />
+                </motion.div>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '0.5rem', letterSpacing: '-0.02em' }}>Bid Submission & Evaluation Portal</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem', lineHeight: '1.6' }}>
+                  Two-Envelope Encrypted Bid Submissions, Technical Scoring Matrix, and Financial Unsealing Engine.
+                </p>
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setActiveTab('tenders')}
+                  className="btn-action"
+                  style={{ padding: '0.8rem 1.5rem' }}
+                >
+                  Explore Active Tenders <ArrowRight size={16} />
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* ── Users View ── */}
+          {activeTab === 'users' && (
+            <motion.div
+              key="users"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ padding: '2rem 0' }}
+            >
+              <UserManagementDashboard />
+            </motion.div>
+          )}
+
+          {/* ── RBAC View ── */}
+          {activeTab === 'rbac' && (
+            <motion.div
+              key="rbac"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ padding: '2rem 0' }}
+            >
+              <PermissionMatrix />
+            </motion.div>
+          )}
+
+          {/* ── Security View ── */}
+          {activeTab === 'security' && (
+            <motion.div
+              key="security"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ padding: '2rem 0', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+            >
+              <SplitScreenAuth onLoginSuccess={() => setActiveTab('users')} />
+              <div className="grid-2">
+                <MFASetup />
+                <SessionManager />
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Bidding & Evaluation View */}
-        {activeTab === 'bids' && (
-          <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
-            <Gavel size={36} color="var(--cyan)" style={{ marginBottom: '0.75rem' }} />
-            <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginBottom: '0.5rem' }}>Bid Submission & Evaluation Portal</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '600px', margin: '0 auto 1.5rem' }}>
-              Two-Envelope Encrypted Bid Submissions, Technical Scoring Matrix, and Financial Unsealing Engine.
-            </p>
-            <button onClick={() => setActiveTab('tenders')} className="btn-action">
-              Explore Active Tenders to Submit Bid
-            </button>
-          </div>
-        )}
-
-        {/* User Management Tab */}
-        {activeTab === 'users' && <UserManagementDashboard />}
-
-        {/* RBAC Matrix Tab */}
-        {activeTab === 'rbac' && <PermissionMatrix />}
-
-        {/* Identity & Security Portal Tab */}
-        {activeTab === 'security' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <SplitScreenAuth onLoginSuccess={() => setActiveTab('users')} />
-            <div className="grid-2">
-              <MFASetup />
-              <SessionManager />
-            </div>
-          </div>
-        )}
-
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
-      {/* Auth Modals */}
+      {/* Auth Modal */}
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
-      {addUserModalOpen && (
-        <AddEditUserModal 
-          onClose={() => setAddUserModalOpen(false)} 
-          onSuccess={() => {
-            setAddUserModalOpen(false);
-            setActiveTab('users');
-          }}
-        />
-      )}
+
+      {/* Add User Modal */}
+      <AnimatePresence>
+        {addUserModalOpen && (
+          <AddEditUserModal
+            onClose={() => setAddUserModalOpen(false)}
+            onSuccess={() => {
+              setAddUserModalOpen(false);
+              setActiveTab('users');
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
-      <footer style={{ marginTop: '4rem', borderTop: '1px solid var(--border-muted)', padding: '2rem 0', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-        <p>tenderX © 2026 | Enterprise Online Tender Management Platform | Infrastructure & Security Active</p>
-      </footer>
+      <motion.footer
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+        style={{
+          marginTop: 'auto',
+          borderTop: '1px solid var(--border-subtle)',
+          padding: '2rem 0',
+          textAlign: 'center',
+        }}
+      >
+        <div className="container">
+          <p style={{ color: 'var(--text-faint)', fontSize: '0.8rem', fontWeight: '500' }}>
+            tenderX © 2026 · Enterprise Online Tender Management Platform · Infrastructure & Security Active
+          </p>
+        </div>
+      </motion.footer>
     </div>
   );
 }
