@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import SystemStatus from './components/SystemStatus';
 import AuthModal from './components/AuthModal';
@@ -29,7 +29,10 @@ import {
   TrendingUp,
   Zap,
   Lock,
-  Shield
+  Shield,
+  GripVertical,
+  Timer,
+  AlertTriangle
 } from 'lucide-react';
 
 /* ── Animation Variants ── */
@@ -64,6 +67,108 @@ const scrollStagger = {
 const scrollFadeUpChild = {
   initial: { opacity: 0, y: 30 },
 };
+
+/* ── Bid Countdown Timer ── */
+function CountdownTimer({ deadline, publishDate }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const { days, hours, minutes, seconds, totalMs, progress, urgency } = useMemo(() => {
+    const deadlineMs = new Date(deadline).getTime();
+    const publishMs = publishDate ? new Date(publishDate).getTime() : deadlineMs - 30 * 86400000;
+    const totalWindow = deadlineMs - publishMs;
+    const remaining = Math.max(0, deadlineMs - now);
+    const elapsed = totalWindow - remaining;
+    const prog = totalWindow > 0 ? Math.min(1, Math.max(0, elapsed / totalWindow)) : 1;
+
+    let urg = 'safe';
+    if (remaining <= 0) urg = 'expired';
+    else if (remaining < 86400000) urg = 'critical';
+    else if (remaining < 2 * 86400000) urg = 'danger';
+    else if (remaining < 7 * 86400000) urg = 'warning';
+
+    return {
+      days: Math.floor(remaining / 86400000),
+      hours: Math.floor((remaining % 86400000) / 3600000),
+      minutes: Math.floor((remaining % 3600000) / 60000),
+      seconds: Math.floor((remaining % 60000) / 1000),
+      totalMs: remaining,
+      progress: prog,
+      urgency: urg,
+    };
+  }, [deadline, publishDate, now]);
+
+  const colors = {
+    safe: { bar: 'var(--emerald)', text: 'var(--emerald)', glow: 'rgba(52, 211, 153, 0.15)' },
+    warning: { bar: 'var(--amber)', text: 'var(--amber)', glow: 'rgba(245, 158, 11, 0.15)' },
+    danger: { bar: '#f97316', text: '#f97316', glow: 'rgba(249, 115, 22, 0.15)' },
+    critical: { bar: 'var(--rose)', text: 'var(--rose)', glow: 'rgba(251, 113, 133, 0.2)' },
+    expired: { bar: 'var(--text-faint)', text: 'var(--text-faint)', glow: 'transparent' },
+  };
+  const c = colors[urgency];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      {/* Progress bar */}
+      <div style={{ position: 'relative', height: '6px', borderRadius: '999px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${progress * 100}%` }}
+          transition={{ type: 'spring', stiffness: 60, damping: 15 }}
+          style={{
+            height: '100%',
+            borderRadius: '999px',
+            background: c.bar,
+            boxShadow: `0 0 12px ${c.glow}`,
+          }}
+        />
+        {urgency === 'critical' && (
+          <motion.div
+            animate={{ opacity: [0.3, 0.7, 0.3] }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+            style={{
+              position: 'absolute', inset: 0,
+              background: `linear-gradient(90deg, transparent, ${c.bar}, transparent)`,
+              borderRadius: '999px',
+            }}
+          />
+        )}
+      </div>
+
+      {/* Countdown text */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        {urgency === 'critical' ? (
+          <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1 }}>
+            <AlertTriangle size={13} color={c.text} />
+          </motion.div>
+        ) : (
+          <Timer size={12} color={c.text} style={{ opacity: 0.7 }} />
+        )}
+        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+          {totalMs <= 0 ? (
+            <span style={{ color: c.text, fontWeight: '700', letterSpacing: '0.04em' }}>DEADLINE PASSED</span>
+          ) : (
+            [
+              { val: days, label: 'd' },
+              { val: hours, label: 'h' },
+              { val: minutes, label: 'm' },
+              { val: seconds, label: 's' },
+            ].map((unit) => (
+              <span key={unit.label} style={{ color: c.text, fontWeight: '700' }}>
+                {String(unit.val).padStart(2, '0')}
+                <span style={{ fontWeight: '400', opacity: 0.6, fontSize: '0.65rem' }}>{unit.label}</span>
+              </span>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ── Tab Configuration ── */
 const tabs = [
@@ -370,7 +475,10 @@ function TenderRow({ tender, index }) {
       </td>
       <td style={{ padding: '0.85rem 1rem', fontWeight: '700', color: 'var(--text-primary)' }}>{tender.estimated_cost}</td>
       <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>{tender.emd_amount}</td>
-      <td className="code-font" style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: 'var(--amber)' }}>{tender.submission_deadline}</td>
+      <td style={{ padding: '0.85rem 1rem', minWidth: '160px' }}>
+        <div className="code-font" style={{ fontSize: '0.75rem', color: 'var(--amber)', marginBottom: '0.35rem' }}>{tender.submission_deadline}</div>
+        <CountdownTimer deadline={tender.submission_deadline} publishDate={tender.publish_date} />
+      </td>
       <td style={{ padding: '0.85rem 1rem' }}>
         <span className={`badge ${tender.status === 'Published' ? 'badge-success' : 'badge-warning'}`}>
           {tender.status}
@@ -380,24 +488,41 @@ function TenderRow({ tender, index }) {
   );
 }
 
-/* ── Tender Card ── */
-function TenderCard({ tender }) {
+/* ── Tender Card (draggable + countdown) ── */
+function TenderCard({ tender, dragHandleProps }) {
   return (
-    <motion.div
-      variants={fadeUp}
-      whileHover={{ scale: 1.01, y: -3 }}
+    <Reorder.Item
+      value={tender}
+      whileDrag={{ scale: 1.04, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', zIndex: 10 }}
+      whileHover={{ y: -3 }}
       transition={{ type: 'spring', stiffness: 300, damping: 25 }}
       className="glass-card"
-      style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'var(--bg-card)', cursor: 'pointer' }}
+      style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'var(--bg-card)', cursor: 'grab', listStyle: 'none' }}
     >
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
-          <span className="code-font" style={{ fontSize: '0.78rem', color: tender.color, fontWeight: '700' }}>{tender.id}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="code-font" style={{ fontSize: '0.78rem', color: tender.color, fontWeight: '700' }}>{tender.id}</span>
+            <motion.div
+              {...(dragHandleProps || {})}
+              whileHover={{ color: 'var(--primary-light)' }}
+              style={{ color: 'var(--text-faint)', cursor: 'grab', display: 'flex' }}
+            >
+              <GripVertical size={14} />
+            </motion.div>
+          </div>
           <span className={`badge ${tender.status === 'Published' ? 'badge-success' : 'badge-warning'}`}>{tender.status}</span>
         </div>
         <h4 style={{ fontSize: '1rem', fontWeight: '750', marginBottom: '0.5rem', lineHeight: '1.35', color: 'var(--text-primary)' }}>{tender.title}</h4>
         <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>{tender.organization}</p>
       </div>
+
+      {/* Countdown Timer */}
+      <div style={{ marginBottom: '0.85rem' }}>
+        <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', marginBottom: '0.35rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Bidding Window</div>
+        <CountdownTimer deadline={tender.submission_deadline} publishDate={tender.publish_date} />
+      </div>
+
       <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ color: 'var(--text-dim)' }}>Estimated Cost:</span>
@@ -412,7 +537,7 @@ function TenderCard({ tender }) {
           <span className="code-font" style={{ color: 'var(--amber)', fontWeight: '600' }}>{tender.submission_deadline}</span>
         </div>
       </div>
-    </motion.div>
+    </Reorder.Item>
   );
 }
 
@@ -425,6 +550,7 @@ function TenderXApp() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [tenderOrder, setTenderOrder] = useState(sampleTenders);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -551,11 +677,21 @@ function TenderXApp() {
                     <h3 style={{ fontSize: '1.3rem', fontWeight: '800', letterSpacing: '-0.02em' }}>Tenders & Bill of Quantities (BOQ) Catalog</h3>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Browse public tender notices, BOQ specifications, and bidding deadlines</p>
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-faint)' }}>
+                    <GripVertical size={14} />
+                    <span>Drag to prioritize</span>
+                  </div>
                 </div>
 
-                <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, margin: '-30px' }} className="grid-3" style={{ gap: '1.25rem' }}>
-                  {sampleTenders.map((t) => <TenderCard key={t.id} tender={t} />)}
-                </motion.div>
+                <Reorder.Group
+                  axis="y"
+                  values={tenderOrder}
+                  onReorder={setTenderOrder}
+                  className="grid-3"
+                  style={{ gap: '1.25rem', padding: 0, margin: 0 }}
+                >
+                  {tenderOrder.map((t) => <TenderCard key={t.id} tender={t} />)}
+                </Reorder.Group>
               </motion.div>
             </motion.div>
           )}
