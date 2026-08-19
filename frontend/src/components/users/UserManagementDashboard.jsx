@@ -19,6 +19,21 @@ const fadeUp = {
   animate: { opacity: 1, y: 0 },
 };
 
+const scrollFadeUp = {
+  initial: { opacity: 0, y: 30 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: '-50px' },
+};
+
+const scrollStagger = {
+  whileInView: { opacity: 1, y: 0, transition: { staggerChildren: 0.07 } },
+  viewport: { once: true, margin: '-30px' },
+};
+
+const scrollChild = {
+  initial: { opacity: 0, y: 20 },
+};
+
 export default function UserManagementDashboard() {
   const [users, setUsers] = useState([]);
   const [metrics, setMetrics] = useState({ total: 0, active: 0, pending: 0, suspended: 0 });
@@ -116,12 +131,12 @@ export default function UserManagementDashboard() {
         </div>
       </motion.div>
 
-      {/* Metric Cards */}
-      <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid-4">
+      {/* Metric Cards — scroll-triggered */}
+      <motion.div variants={scrollStagger} initial="initial" whileInView="whileInView" viewport={scrollStagger.viewport} className="grid-4">
         {metricCards.map((m, i) => {
           const Icon = m.icon;
           return (
-            <motion.div key={i} variants={fadeUp} whileHover={{ scale: 1.02, y: -2 }} transition={{ type: 'spring', stiffness: 300, damping: 25 }} className="glass-card glass-card--compact" style={{ cursor: 'default' }}>
+            <motion.div key={i} variants={scrollChild} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} whileHover={{ scale: 1.02, y: -2 }} transition={{ type: 'spring', stiffness: 300, damping: 25 }} className="glass-card glass-card--compact" style={{ cursor: 'default' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-dim)' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: '650', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{m.label}</span>
                 <Icon size={17} color={m.color} />

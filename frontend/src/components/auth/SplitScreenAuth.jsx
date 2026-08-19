@@ -15,6 +15,15 @@ const staggerContainer = {
   animate: { transition: { staggerChildren: 0.08 } },
 };
 
+const scrollStagger = {
+  whileInView: { opacity: 1, y: 0, transition: { staggerChildren: 0.1 } },
+  viewport: { once: true, margin: '-30px' },
+};
+
+const scrollChild = {
+  initial: { opacity: 0, y: 20 },
+};
+
 export default function SplitScreenAuth({ onLoginSuccess }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
@@ -126,11 +135,12 @@ export default function SplitScreenAuth({ onLoginSuccess }) {
           </div>
         </div>
 
-        {/* Trust Indicators */}
+        {/* Trust Indicators — scroll-triggered */}
         <motion.div
-          variants={staggerContainer}
+          variants={scrollStagger}
           initial="initial"
-          animate="animate"
+          whileInView="whileInView"
+          viewport={scrollStagger.viewport}
           style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.85rem', marginTop: '2rem', position: 'relative', zIndex: 1 }}
         >
           {trustItems.map((item, i) => {
@@ -138,7 +148,9 @@ export default function SplitScreenAuth({ onLoginSuccess }) {
             return (
               <motion.div
                 key={i}
-                variants={fadeUp}
+                variants={scrollChild}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
                 whileHover={{ scale: 1.04, y: -2 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                 className="glass-card glass-card--compact"

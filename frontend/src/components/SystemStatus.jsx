@@ -24,6 +24,21 @@ const fadeUp = {
   animate: { opacity: 1, y: 0 },
 };
 
+const scrollFadeUp = {
+  initial: { opacity: 0, y: 30 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: '-50px' },
+};
+
+const scrollStagger = {
+  whileInView: { opacity: 1, y: 0, transition: { staggerChildren: 0.08 } },
+  viewport: { once: true, margin: '-30px' },
+};
+
+const scrollChild = {
+  initial: { opacity: 0, y: 25 },
+};
+
 export default function SystemStatus() {
   const [health, setHealth] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -125,14 +140,16 @@ export default function SystemStatus() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-      {/* Infrastructure Grid */}
-      <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid-3">
+      {/* Infrastructure Grid — scroll-triggered */}
+      <motion.div variants={scrollStagger} initial="initial" whileInView="whileInView" viewport={scrollStagger.viewport} className="grid-3">
         {stackServices.map((svc, idx) => {
           const IconComp = svc.icon;
           return (
             <motion.div
               key={idx}
-              variants={fadeUp}
+              variants={scrollChild}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
               whileHover={{ scale: 1.015, y: -2 }}
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               className="glass-card"
@@ -181,11 +198,12 @@ export default function SystemStatus() {
 
       {/* Interactive Controls & Console */}
       <div className="grid-2">
-        {/* Health Check Card */}
+        {/* Health Check Card — scroll-triggered */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, type: 'spring', stiffness: 200, damping: 25 }}
+          initial={{ opacity: 0, y: 25 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-40px' }}
+          transition={{ type: 'spring', stiffness: 150, damping: 20 }}
           className="glass-card"
           style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
         >
@@ -248,11 +266,12 @@ export default function SystemStatus() {
           </div>
         </motion.div>
 
-        {/* Task Console */}
+        {/* Task Console — scroll-triggered */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, type: 'spring', stiffness: 200, damping: 25 }}
+          initial={{ opacity: 0, y: 25 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-40px' }}
+          transition={{ type: 'spring', stiffness: 150, damping: 20, delay: 0.1 }}
           className="glass-card"
           style={{ display: 'flex', flexDirection: 'column' }}
         >

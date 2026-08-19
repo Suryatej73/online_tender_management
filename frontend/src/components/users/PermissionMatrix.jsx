@@ -12,6 +12,21 @@ const fadeUp = {
   animate: { opacity: 1, y: 0 },
 };
 
+const scrollFadeUp = {
+  initial: { opacity: 0, y: 30 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: '-50px' },
+};
+
+const scrollStagger = {
+  whileInView: { opacity: 1, y: 0, transition: { staggerChildren: 0.06 } },
+  viewport: { once: true, margin: '-30px' },
+};
+
+const scrollChild = {
+  initial: { opacity: 0, y: 20 },
+};
+
 export default function PermissionMatrix() {
   const [selectedRole, setSelectedRole] = useState('EVALUATOR');
   const [roles, setRoles] = useState([]);
@@ -58,7 +73,7 @@ export default function PermissionMatrix() {
   const categories = Array.from(new Set(permissions.map(p => p.category_display || p.category)));
 
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 25 }} className="glass-card" style={{ padding: '1.75rem' }}>
+    <motion.div {...scrollFadeUp} transition={{ type: 'spring', stiffness: 150, damping: 20 }} className="glass-card" style={{ padding: '1.75rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <div className="badge badge-purple" style={{ marginBottom: '0.4rem' }}><ShieldCheck size={11} /> Fine-Grained RBAC</div>
@@ -87,11 +102,11 @@ export default function PermissionMatrix() {
         </motion.div>
       )}
 
-      <motion.div variants={staggerContainer} initial="initial" animate="animate" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <motion.div variants={scrollStagger} initial="initial" whileInView="whileInView" viewport={scrollStagger.viewport} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {categories.map(cat => {
           const catPerms = permissions.filter(p => (p.category_display || p.category) === cat);
           return (
-            <motion.div key={cat} variants={fadeUp} style={{ background: 'rgba(10, 16, 32, 0.5)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', border: '1px solid var(--border-subtle)' }}>
+            <motion.div key={cat} variants={scrollChild} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ background: 'rgba(10, 16, 32, 0.5)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', border: '1px solid var(--border-subtle)' }}>
               <h4 style={{ fontSize: '0.82rem', fontWeight: '800', color: 'var(--primary-light)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {cat}
               </h4>

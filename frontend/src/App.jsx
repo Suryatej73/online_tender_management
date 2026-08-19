@@ -49,6 +49,22 @@ const scaleIn = {
   exit: { opacity: 0, scale: 0.98 },
 };
 
+/* Scroll-triggered variants (whileInView) */
+const scrollFadeUp = {
+  initial: { opacity: 0, y: 40 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: '-60px' },
+};
+
+const scrollStagger = {
+  whileInView: { opacity: 1, y: 0, transition: { staggerChildren: 0.1 } },
+  viewport: { once: true, margin: '-40px' },
+};
+
+const scrollFadeUpChild = {
+  initial: { opacity: 0, y: 30 },
+};
+
 /* ── Tab Configuration ── */
 const tabs = [
   { id: 'dashboard', label: 'Procurement Dashboard', icon: LayoutDashboard },
@@ -446,16 +462,26 @@ function TenderXApp() {
                 </p>
               </motion.div>
 
-              {/* Stats Grid */}
-              <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid-4" style={{ marginBottom: '2rem' }}>
-                {stats.map((stat, i) => <StatCard key={i} stat={stat} index={i} />)}
+              {/* Stats Grid — scroll-triggered stagger */}
+              <motion.div
+                variants={scrollStagger}
+                initial="initial"
+                whileInView="whileInView"
+                viewport={scrollStagger.viewport}
+                className="grid-4"
+                style={{ marginBottom: '2rem' }}
+              >
+                {stats.map((stat, i) => (
+                  <motion.div key={i} variants={scrollFadeUpChild}>
+                    <StatCard stat={stat} index={i} />
+                  </motion.div>
+                ))}
               </motion.div>
 
-              {/* Tenders Table */}
+              {/* Tenders Table — scroll-triggered */}
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 25 }}
+                {...scrollFadeUp}
+                transition={{ type: 'spring', stiffness: 150, damping: 20, delay: 0.1 }}
                 className="glass-card"
                 style={{ marginBottom: '2rem' }}
               >
@@ -495,11 +521,10 @@ function TenderXApp() {
                 </div>
               </motion.div>
 
-              {/* System Status */}
+              {/* System Status — scroll-triggered */}
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35, type: 'spring', stiffness: 200, damping: 25 }}
+                {...scrollFadeUp}
+                transition={{ type: 'spring', stiffness: 150, damping: 20, delay: 0.15 }}
               >
                 <SystemStatus />
               </motion.div>
@@ -517,9 +542,8 @@ function TenderXApp() {
               style={{ padding: '2rem 0', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
             >
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                {...scrollFadeUp}
+                transition={{ type: 'spring', stiffness: 150, damping: 20 }}
                 className="glass-card"
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -529,7 +553,7 @@ function TenderXApp() {
                   </div>
                 </div>
 
-                <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid-3" style={{ gap: '1.25rem' }}>
+                <motion.div variants={staggerContainer} initial="initial" whileInView="animate" viewport={{ once: true, margin: '-30px' }} className="grid-3" style={{ gap: '1.25rem' }}>
                   {sampleTenders.map((t) => <TenderCard key={t.id} tender={t} />)}
                 </motion.div>
               </motion.div>
@@ -641,11 +665,12 @@ function TenderXApp() {
         )}
       </AnimatePresence>
 
-      {/* Footer */}
+      {/* Footer — scroll-triggered */}
       <motion.footer
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+        initial={{ opacity: 0, y: 10 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-40px' }}
+        transition={{ type: 'spring', stiffness: 150, damping: 20 }}
         style={{
           marginTop: 'auto',
           borderTop: '1px solid var(--border-subtle)',

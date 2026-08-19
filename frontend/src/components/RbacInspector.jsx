@@ -12,6 +12,21 @@ const fadeUp = {
   animate: { opacity: 1, y: 0 },
 };
 
+const scrollFadeUp = {
+  initial: { opacity: 0, y: 30 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: '-50px' },
+};
+
+const scrollStagger = {
+  whileInView: { opacity: 1, y: 0, transition: { staggerChildren: 0.07 } },
+  viewport: { once: true, margin: '-30px' },
+};
+
+const scrollChild = {
+  initial: { opacity: 0, y: 20 },
+};
+
 export default function RbacInspector() {
   const { user, saveAuth } = useAuth();
   const [selectedRole, setSelectedRole] = useState(user?.role || 'VENDOR');
@@ -43,8 +58,8 @@ export default function RbacInspector() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-      {/* Role Selector */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 25 }} className="glass-card">
+      {/* Role Selector — scroll-triggered */}
+      <motion.div {...scrollFadeUp} transition={{ type: 'spring', stiffness: 150, damping: 20 }} className="glass-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
           <div>
             <h3 style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '-0.02em' }} className="text-gradient">RBAC 6-Role Engine</h3>
@@ -53,14 +68,16 @@ export default function RbacInspector() {
           <span className="badge badge-primary">Active: {selectedRole}</span>
         </div>
 
-        <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid-3" style={{ gap: '0.75rem' }}>
+        <motion.div variants={scrollStagger} initial="initial" whileInView="whileInView" viewport={scrollStagger.viewport} className="grid-3" style={{ gap: '0.75rem' }}>
           {rolesConfig.map((r) => {
             const IconComp = r.icon;
             const isSelected = selectedRole === r.key;
             return (
               <motion.button
                 key={r.key}
-                variants={fadeUp}
+                variants={scrollChild}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
                 whileHover={{ scale: 1.02, y: -1 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => simulateRole(r.key)}
@@ -86,8 +103,8 @@ export default function RbacInspector() {
         </motion.div>
       </motion.div>
 
-      {/* Permissions Matrix */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 25 }} className="glass-card" style={{ overflowX: 'auto' }}>
+      {/* Permissions Matrix — scroll-triggered */}
+      <motion.div {...scrollFadeUp} transition={{ type: 'spring', stiffness: 150, damping: 20, delay: 0.1 }} className="glass-card" style={{ overflowX: 'auto' }}>
         <h4 style={{ fontSize: '1rem', fontWeight: '750', marginBottom: '1.25rem' }}>Permission Matrix</h4>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
           <thead>
