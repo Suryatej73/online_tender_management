@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, UserPlus, ShieldAlert, CheckCircle2, Clock, 
+import { motion } from 'motion/react';
+import {
+  Users, UserPlus, ShieldAlert, CheckCircle2, Clock,
   UserCheck, RefreshCw, AlertCircle, ShieldCheck
 } from 'lucide-react';
 import { usersApi } from '../../api/usersApi';
@@ -8,6 +9,30 @@ import UserFiltersToolbar from './UserFiltersToolbar';
 import UserTable from './UserTable';
 import UserProfileModal from './UserProfileModal';
 import AddEditUserModal from './AddEditUserModal';
+
+const staggerContainer = {
+  animate: { transition: { staggerChildren: 0.06 } },
+};
+
+const fadeUp = {
+  initial: { opacity: 0, y: 14 },
+  animate: { opacity: 1, y: 0 },
+};
+
+const scrollFadeUp = {
+  initial: { opacity: 0, y: 30 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: '-50px' },
+};
+
+const scrollStagger = {
+  whileInView: { opacity: 1, y: 0, transition: { staggerChildren: 0.07 } },
+  viewport: { once: true, margin: '-30px' },
+};
+
+const scrollChild = {
+  initial: { opacity: 0, y: 20 },
+};
 
 export default function UserManagementDashboard() {
   const [users, setUsers] = useState([]);
@@ -17,34 +42,24 @@ export default function UserManagementDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Filters State
   const [filters, setFilters] = useState({
-    search: '',
-    role: '',
-    organization: '',
-    department: '',
-    status: '',
-    is_verified: '',
-    sort_by: '-created_at'
+    search: '', role: '', organization: '', department: '',
+    status: '', is_verified: '', sort_by: '-created_at'
   });
 
-  // Modal States
   const [selectedUser, setSelectedUser] = useState(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [addEditModalOpen, setAddEditModalOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState(null);
-  const [confirmDialog, setConfirmDialog] = useState(null); // { type, user, message, action }
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
-  // Load Data
   const loadUsers = async () => {
     setLoading(true);
     setError('');
     try {
       const data = await usersApi.getUsers(filters);
       setUsers(data.users || []);
-      if (data.metrics) {
-        setMetrics(data.metrics);
-      }
+      if (data.metrics) setMetrics(data.metrics);
     } catch (err) {
       setError(err.message || 'Failed to fetch user accounts.');
     } finally {
@@ -52,213 +67,127 @@ export default function UserManagementDashboard() {
     }
   };
 
-  useEffect(() => {
-    loadUsers();
-  }, [filters]);
-
+  useEffect(() => { loadUsers(); }, [filters]);
   useEffect(() => {
     usersApi.getOrganizations().then(setOrganizations).catch(() => []);
     usersApi.getDepartments().then(setDepartments).catch(() => []);
   }, []);
 
   const handleClearFilters = () => {
-    setFilters({
-      search: '',
-      role: '',
-      organization: '',
-      department: '',
-      status: '',
-      is_verified: '',
-      sort_by: '-created_at'
-    });
+    setFilters({ search: '', role: '', organization: '', department: '', status: '', is_verified: '', sort_by: '-created_at' });
   };
 
-  // Table Action Handler
   const handleTableAction = async (actionType, user) => {
     setSelectedUser(user);
-    if (actionType === 'view') {
-      setProfileModalOpen(true);
-    } else if (actionType === 'edit') {
-      setUserToEdit(user);
-      setAddEditModalOpen(true);
-    } else if (actionType === 'suspend') {
-      setConfirmDialog({
-        type: 'suspend',
-        user,
-        title: `Suspend Account ${user.email}?`,
-        message: 'Suspended users cannot access the portal and their active sessions will be revoked instantly.',
-        action: async () => {
-          await usersApi.suspendUser(user.id);
-          loadUsers();
-        }
-      });
-    } else if (actionType === 'activate') {
-      await usersApi.activateUser(user.id);
-      loadUsers();
-    } else if (actionType === 'verify') {
-      await usersApi.verifyUser(user.id);
-      loadUsers();
-    } else if (actionType === 'reset-password') {
-      const newPass = prompt(`Enter new password for ${user.email}:`, 'ResetPass123!');
-      if (newPass) {
-        await usersApi.resetUserPassword(user.id, newPass);
-        alert(`Password has been reset for ${user.email}. Active sessions revoked.`);
-        loadUsers();
-      }
+    if (actionType === 'view') setProfileModalOpen(true);
+    else if (actionType === 'edit') { setUserToEdit(user); setAddEditModalOpen(true); }
+    else if (actionType === 'suspend') {
+      setConfirmDialog({ type: 'suspend', user, title: `Suspend ${user.email}?`, message: 'Suspended users cannot access the portal.', action: async () => { await usersApi.suspendUser(user.id); loadUsers(); } });
+    } else if (actionType === 'activate') { await usersApi.activateUser(user.id); loadUsers(); }
+    else if (actionType === 'verify') { await usersApi.verifyUser(user.id); loadUsers(); }
+    else if (actionType === 'reset-password') {
+      const newPass = prompt(`New password for ${user.email}:`, 'ResetPass123!');
+      if (newPass) { await usersApi.resetUserPassword(user.id, newPass); alert(`Password reset for ${user.email}.`); loadUsers(); }
     } else if (actionType === 'revoke-sessions') {
-      setConfirmDialog({
-        type: 'revoke',
-        user,
-        title: `Revoke All Sessions for ${user.email}?`,
-        message: 'This will force log out the user from all active browsers and mobile devices.',
-        action: async () => {
-          await usersApi.revokeUserSessions(user.id);
-          loadUsers();
-        }
-      });
+      setConfirmDialog({ type: 'revoke', user, title: `Revoke sessions for ${user.email}?`, message: 'Force log out from all devices.', action: async () => { await usersApi.revokeUserSessions(user.id); loadUsers(); } });
     } else if (actionType === 'delete') {
-      setConfirmDialog({
-        type: 'delete',
-        user,
-        title: `Deactivate Account ${user.email}?`,
-        message: 'This action soft-deletes the user from active procurement directories.',
-        action: async () => {
-          await usersApi.deleteUser(user.id);
-          loadUsers();
-        }
-      });
+      setConfirmDialog({ type: 'delete', user, title: `Deactivate ${user.email}?`, message: 'Soft-delete from active directories.', action: async () => { await usersApi.deleteUser(user.id); loadUsers(); } });
     }
   };
 
+  const metricCards = [
+    { label: 'Total Users', value: metrics.total || users.length, sub: 'Registered accounts', icon: Users, color: 'var(--accent)' },
+    { label: 'Active Accounts', value: metrics.active || 0, sub: 'Authorized logins', icon: UserCheck, color: 'var(--emerald)' },
+    { label: 'Pending Verification', value: metrics.pending || 0, sub: 'Awaiting validation', icon: Clock, color: 'var(--amber)' },
+    { label: 'Suspended', value: metrics.suspended || 0, sub: 'Access revoked', icon: ShieldAlert, color: 'var(--rose)' },
+  ];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      
-      {/* Top Title & Primary Actions */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}
+      >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em' }}>User Management Dashboard</h2>
-            <span className="badge badge-primary"><ShieldCheck size={12} /> RBAC Controlled</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '900', letterSpacing: '-0.03em' }} className="text-gradient">User Management</h2>
+            <span className="badge badge-primary"><ShieldCheck size={11} /> RBAC</span>
           </div>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-            Enterprise procurement directory, multi-tenant role assignments, verification status, and audit controls.
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>
+            Enterprise procurement directory, multi-tenant roles, verification, and audit controls.
           </p>
         </div>
-
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn-secondary" onClick={loadUsers}>
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
-          </button>
-          <button className="btn-action" onClick={() => { setUserToEdit(null); setAddEditModalOpen(true); }}>
-            <UserPlus size={16} /> Add User
-          </button>
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="btn-secondary" onClick={loadUsers}>
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
+          </motion.button>
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="btn-action" onClick={() => { setUserToEdit(null); setAddEditModalOpen(true); }}>
+            <UserPlus size={15} /> Add User
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Summary Metrics Cards */}
-      <div className="grid-4">
-        <div className="glass-card" style={{ padding: '1.1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase' }}>Total Users</span>
-            <Users size={18} color="var(--accent)" />
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '800', marginTop: '0.35rem' }}>{metrics.total || users.length}</div>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Registered accounts</div>
-        </div>
+      {/* Metric Cards — scroll-triggered */}
+      <motion.div variants={scrollStagger} initial="initial" whileInView="whileInView" viewport={scrollStagger.viewport} className="grid-4">
+        {metricCards.map((m, i) => {
+          const Icon = m.icon;
+          return (
+            <motion.div key={i} variants={scrollChild} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} whileHover={{ scale: 1.02, y: -2 }} transition={{ type: 'spring', stiffness: 300, damping: 25 }} className="glass-card glass-card--compact" style={{ cursor: 'default' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-dim)' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: '650', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{m.label}</span>
+                <Icon size={17} color={m.color} />
+              </div>
+              <div style={{ fontSize: '1.85rem', fontWeight: '900', marginTop: '0.35rem', color: m.color, letterSpacing: '-0.03em' }}>{m.value}</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-faint)', marginTop: '0.15rem' }}>{m.sub}</div>
+            </motion.div>
+          );
+        })}
+      </motion.div>
 
-        <div className="glass-card" style={{ padding: '1.1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase' }}>Active Accounts</span>
-            <UserCheck size={18} color="var(--emerald)" />
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--emerald)', marginTop: '0.35rem' }}>{metrics.active || 0}</div>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Authorized active logins</div>
-        </div>
+      {/* Filters */}
+      <UserFiltersToolbar filters={filters} setFilters={setFilters} onClearFilters={handleClearFilters} organizations={organizations} departments={departments} />
 
-        <div className="glass-card" style={{ padding: '1.1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase' }}>Pending Verification</span>
-            <Clock size={18} color="var(--amber)" />
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--amber)', marginTop: '0.35rem' }}>{metrics.pending || 0}</div>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Awaiting email validation</div>
-        </div>
-
-        <div className="glass-card" style={{ padding: '1.1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase' }}>Suspended Accounts</span>
-            <ShieldAlert size={18} color="var(--rose)" />
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--rose)', marginTop: '0.35rem' }}>{metrics.suspended || 0}</div>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Security access revoked</div>
-        </div>
-      </div>
-
-      {/* Filter Toolbar */}
-      <UserFiltersToolbar
-        filters={filters}
-        setFilters={setFilters}
-        onClearFilters={handleClearFilters}
-        organizations={organizations}
-        departments={departments}
-      />
-
-      {/* Error Message */}
+      {/* Error */}
       {error && (
-        <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', padding: '0.85rem 1rem', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+          style={{ background: 'var(--rose-surface)', border: '1px solid rgba(251,113,133,0.2)', color: 'var(--rose)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <AlertCircle size={18} /> {error}
-        </div>
+        </motion.div>
       )}
 
-      {/* Main Users Table */}
+      {/* Table */}
       <UserTable users={users} onAction={handleTableAction} />
 
       {/* Modals */}
-      {profileModalOpen && (
-        <UserProfileModal
-          user={selectedUser}
-          onClose={() => setProfileModalOpen(false)}
-          onRefresh={loadUsers}
-        />
-      )}
+      {profileModalOpen && <UserProfileModal user={selectedUser} onClose={() => setProfileModalOpen(false)} onRefresh={loadUsers} />}
+      {addEditModalOpen && <AddEditUserModal user={userToEdit} onClose={() => setAddEditModalOpen(false)} onSuccess={loadUsers} organizations={organizations} departments={departments} />}
 
-      {addEditModalOpen && (
-        <AddEditUserModal
-          user={userToEdit}
-          onClose={() => setAddEditModalOpen(false)}
-          onSuccess={loadUsers}
-          organizations={organizations}
-          departments={departments}
-        />
-      )}
-
-      {/* Destructive Action Confirm Dialog */}
+      {/* Confirm Dialog */}
       {confirmDialog && (
-        <div className="modal-overlay" onClick={() => setConfirmDialog(null)}>
-          <div className="modal-content" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', color: '#f87171' }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="modal-overlay" onClick={() => setConfirmDialog(null)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="modal-content" style={{ maxWidth: '460px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.25rem', color: 'var(--rose)' }}>
               <ShieldAlert size={24} />
-              <h3 style={{ fontSize: '1.15rem', fontWeight: '800' }}>{confirmDialog.title}</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '800' }}>{confirmDialog.title}</h3>
             </div>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.5' }}>
-              {confirmDialog.message}
-            </p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '1.5rem', lineHeight: '1.6' }}>{confirmDialog.message}</p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button className="btn-secondary" onClick={() => setConfirmDialog(null)}>Cancel</button>
-              <button
-                className="btn-danger"
-                onClick={async () => {
-                  await confirmDialog.action();
-                  setConfirmDialog(null);
-                }}
-              >
-                Confirm Action
-              </button>
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="btn-secondary" onClick={() => setConfirmDialog(null)}>Cancel</motion.button>
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="btn-danger" onClick={async () => { await confirmDialog.action(); setConfirmDialog(null); }}>Confirm</motion.button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
-
     </div>
   );
 }
