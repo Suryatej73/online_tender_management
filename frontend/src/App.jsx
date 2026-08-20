@@ -9,6 +9,8 @@ import SplitScreenAuth from './components/auth/SplitScreenAuth';
 import UserManagementDashboard from './components/users/UserManagementDashboard';
 import PermissionMatrix from './components/users/PermissionMatrix';
 import AddEditUserModal from './components/users/AddEditUserModal';
+import TenderManagementDashboard from './components/tenders/TenderManagementDashboard';
+
 import { 
   ShieldCheck, 
   Users, 
@@ -310,48 +312,8 @@ function TenderXApp() {
         )}
 
         {/* Tenders & BOQ Catalog View */}
-        {activeTab === 'tenders' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div className="glass-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>Tenders & Bill of Quantities (BOQ) Catalog</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Browse public tender notices, BOQ specifications, and bidding deadlines</p>
-                </div>
-              </div>
+        {activeTab === 'tenders' && <TenderManagementDashboard />}
 
-              <div className="grid-3" style={{ gap: '1.25rem' }}>
-                {tenders.map((t) => (
-                  <div key={t.id} className="glass-card" style={{ background: 'rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        <span className="code-font" style={{ fontSize: '0.8rem', color: 'var(--cyan)', fontWeight: '700' }}>{t.id}</span>
-                        <span className="badge badge-success">{t.status}</span>
-                      </div>
-                      <h4 style={{ fontSize: '1rem', fontWeight: '700', marginBottom: '0.5rem', lineHeight: '1.3' }}>{t.title}</h4>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>{t.organization}</p>
-                    </div>
-
-                    <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '0.75rem', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Estimated Cost:</span>
-                        <span style={{ fontWeight: '700' }}>{t.estimated_cost}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>EMD Deposit:</span>
-                        <span>{t.emd_amount}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Deadline:</span>
-                        <span className="code-font" style={{ color: 'var(--amber)' }}>{t.submission_deadline}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Bidding & Evaluation View */}
         {activeTab === 'bids' && (
