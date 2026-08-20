@@ -10,6 +10,7 @@ import UserManagementDashboard from './components/users/UserManagementDashboard'
 import PermissionMatrix from './components/users/PermissionMatrix';
 import AddEditUserModal from './components/users/AddEditUserModal';
 import TenderManagementDashboard from './components/tenders/TenderManagementDashboard';
+import VendorManagementDashboard from './components/vendors/VendorManagementDashboard';
 
 import { 
   ShieldCheck, 
@@ -29,11 +30,7 @@ import {
   TrendingUp,
   Award,
   Search,
-  Plus,
-  Building,
-  Bell,
-  Clock,
-  ExternalLink
+  Plus,  Building, Bell, Clock, ExternalLink, Building2
 } from 'lucide-react';
 
 function TenderXApp() {
@@ -194,6 +191,12 @@ function TenderXApp() {
               <Users size={16} /> User & Org Administration
             </button>
             <button 
+              onClick={() => setActiveTab('vendors')} 
+              style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'vendors' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'vendors' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+            >
+              <Building2 size={16} /> Vendor Management
+            </button>
+            <button 
               onClick={() => setActiveTab('rbac')} 
               style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'rbac' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'rbac' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
             >
@@ -313,6 +316,9 @@ function TenderXApp() {
 
         {/* Tenders & BOQ Catalog View */}
         {activeTab === 'tenders' && <TenderManagementDashboard />}
+
+        {/* Vendor Management Tab */}
+        {activeTab === 'vendors' && <VendorManagementDashboard />}
 
 
         {/* Bidding & Evaluation View */}

@@ -134,12 +134,12 @@ If `docker` is not recognized, install Docker Desktop (or add its CLI to your
 - [x] **M2: User Authentication & Role-Based Access Control (RBAC)** — [*Docs*](docs/M2_AUTH_AND_RBAC.md)
 - [x] **M3: Advanced User Management & Authentication UI** — [*Docs*](docs/M3_USER_MANAGEMENT_AND_AUTH_UI.md)
 - [x] **M5: Complete Tender Management Engine (State Machine, Categories, Templates, Amendments, Versioning)** — [*Docs*](docs/M5_TENDER_MANAGEMENT.md)
-- [ ] **M6: Encrypted Bid Submission Engine**
-- [ ] **M7: Automated & Manual Tender Evaluation**
-- [ ] **M8: Real-time Reverse Auction Engine**
-- [ ] **M9: Award of Contract & PO Generation**
-- [ ] **M10: Payment Gateway & EMD Wallet Integration**
-- [ ] **M11: Immutable Audit Logging & Security**
+- [x] **M6: Vendor Management (Registration, Verification, Profiles, Ratings, Performance, Blacklisting)** — [*Docs*](docs/M6_VENDOR_MANAGEMENT.md)
+- [ ] **M7: Encrypted Bid Submission Engine**
+- [ ] **M8: Automated & Manual Tender Evaluation**
+- [ ] **M9: Real-time Reverse Auction Engine**
+- [ ] **M10: Award of Contract & PO Generation**
+- [ ] **M11: Payment Gateway & EMD Wallet Integration**
 - [ ] **M12: Analytics, Spend Reports & Vendor Performance**
 
 

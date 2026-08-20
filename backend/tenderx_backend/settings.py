@@ -43,6 +43,7 @@ except ImportError:
 INSTALLED_APPS.append('core.apps.CoreConfig')
 INSTALLED_APPS.append('accounts.apps.AccountsConfig')
 INSTALLED_APPS.append('tenders.apps.TendersConfig')
+INSTALLED_APPS.append('vendors.apps.VendorsConfig')
 
 AUTH_USER_MODEL = 'accounts.User'
 
