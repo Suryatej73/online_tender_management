@@ -108,6 +108,7 @@ export default function TenderManagementDashboard() {
       };
 
       await tendersApi.createTender(payload);
+      window.dispatchEvent(new Event('tenders:changed'));
       setSuccessMsg('Draft tender created successfully!');
       setCreateModalOpen(false);
       setFormData({
@@ -125,6 +126,7 @@ export default function TenderManagementDashboard() {
     setError('');
     try {
       await tendersApi.applyTemplate(templateId);
+      window.dispatchEvent(new Event('tenders:changed'));
       setSuccessMsg('Tender created from template!');
       setTemplateModalOpen(false);
       loadData();
@@ -137,6 +139,7 @@ export default function TenderManagementDashboard() {
     setError('');
     try {
       const res = await tendersApi.transitionTender(tenderId, targetStatus, reason);
+      window.dispatchEvent(new Event('tenders:changed'));
       setSuccessMsg(res.message || `Tender status updated to ${targetStatus}`);
       if (selectedTender && selectedTender.id === tenderId) {
         const detailRes = await tendersApi.getTenderDetail(tenderId);

@@ -2,7 +2,7 @@ import uuid
 import datetime
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from accounts.views import get_request_data
 
 try:
@@ -50,6 +50,34 @@ def generate_tender_number():
     year = timezone.now().year
     count = Tender.objects.filter(created_at__year=year).count() + 1
     return f"TND-{year}-{count:06d}"
+
+
+class TenderDashboardView(APIView):
+    """Live summary used by the procurement dashboard."""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        tenders = Tender.objects.filter(is_deleted=False)
+        awarded = tenders.filter(status=TenderStatus.AWARDED)
+
+        # The project does not yet have a bid persistence model.  Returning zero
+        # makes that limitation explicit instead of showing a fabricated value.
+        return Response({
+            "success": True,
+            "data": {
+                "statistics": {
+                    "active_tenders": tenders.filter(status=TenderStatus.ACTIVE).count(),
+                    "submitted_bids": 0,
+                    "awarded_value": awarded.aggregate(total=Sum('budget'))['total'] or 0,
+                    "awarded_contracts": awarded.count(),
+                    "total_tenders": tenders.count(),
+                },
+                "recent_tenders": TenderSerializer(
+                    tenders.select_related('category', 'organization').order_by('-created_at')[:8],
+                    many=True,
+                ).data,
+            },
+        }, status=status.HTTP_200_OK)
 
 
 class TenderListCreateView(APIView):

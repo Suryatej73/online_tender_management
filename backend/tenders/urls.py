@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    TenderListCreateView, TenderDetailView, TenderTransitionView,
+    TenderListCreateView, TenderDashboardView, TenderDetailView, TenderTransitionView,
     TenderCategoryView, TenderCategoryDetailView, TenderTemplateView,
     ApplyTemplateView, TenderAmendmentView, PublishAmendmentView,
     TenderVersionHistoryView
@@ -8,6 +8,7 @@ from .views import (
 
 urlpatterns = [
     # Tender CRUD & Search
+    path('tenders/dashboard/', TenderDashboardView.as_view(), name='tender_dashboard'),
     path('tenders/', TenderListCreateView.as_view(), name='tender_list_create'),
     path('tenders/<uuid:pk>/', TenderDetailView.as_view(), name='tender_detail'),
     path('tenders/<uuid:pk>/transition/', TenderTransitionView.as_view(), name='tender_transition'),
