@@ -35,8 +35,9 @@ import {
   TrendingUp,
   Award,
   Search,
-  Plus,  Building, Bell, Clock, ExternalLink, Building2
+  Plus,  Building, Bell, Clock, ExternalLink, Building2, FileCheck
 } from 'lucide-react';
+
 
 function TenderXApp() {
   const { user, logout } = useAuth();
