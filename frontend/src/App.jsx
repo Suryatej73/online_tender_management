@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import SystemStatus from './components/SystemStatus';
 import AuthModal from './components/AuthModal';
@@ -11,6 +11,8 @@ import PermissionMatrix from './components/users/PermissionMatrix';
 import AddEditUserModal from './components/users/AddEditUserModal';
 import TenderManagementDashboard from './components/tenders/TenderManagementDashboard';
 import VendorManagementDashboard from './components/vendors/VendorManagementDashboard';
+import { tendersApi } from './api/tendersApi';
+import { vendorsApi } from './api/vendorsApi';
 
 import { 
   ShieldCheck, 
@@ -39,45 +41,45 @@ function TenderXApp() {
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'tenders', 'bids', 'users', 'rbac', 'security'
 
-  // Sample Published Tenders Data for Enterprise Tender Catalog Preview
-  const [tenders] = useState([
-    {
-      id: "TDR-2026-8901",
-      title: "Supply & Installation of High-Performance Data Center Servers",
-      category: "IT Infrastructure & Hardware",
-      estimated_cost: "$1,250,000",
-      emd_amount: "$25,000",
-      publish_date: "2026-08-01",
-      submission_deadline: "2026-08-28",
-      status: "Published",
-      stage: "Two-Envelope Bidding",
-      organization: "Ministry of Digital Transformation"
-    },
-    {
-      id: "TDR-2026-8902",
-      title: "Construction of Smart Civil Highway Bypass & Toll Plaza",
-      category: "Civil Construction & Works",
-      estimated_cost: "$8,500,000",
-      emd_amount: "$170,000",
-      publish_date: "2026-07-15",
-      submission_deadline: "2026-08-25",
-      status: "Under Evaluation",
-      stage: "Technical Scoring",
-      organization: "National Highway Authority"
-    },
-    {
-      id: "TDR-2026-8903",
-      title: "Annual Maintenance Contract (AMC) for Renewable Solar Plant",
-      category: "Energy & Utilities",
-      estimated_cost: "$480,000",
-      emd_amount: "$9,600",
-      publish_date: "2026-08-10",
-      submission_deadline: "2026-09-05",
-      status: "Published",
-      stage: "Reverse Auction Eligible",
-      organization: "Green Energy Grid Ltd"
+  const [dashboard, setDashboard] = useState({ statistics: {}, recent_tenders: [] });
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  const loadDashboard = useCallback(async () => {
+    try {
+      const [tenderResponse, vendorResponse] = await Promise.all([
+        tendersApi.getDashboard(),
+        vendorsApi.getDashboard().catch(() => ({ data: {} })),
+      ]);
+      setDashboard({
+        ...(tenderResponse.data || { statistics: {}, recent_tenders: [] }),
+        vendorCount: vendorResponse.data?.total_vendors || 0,
+      });
+    } catch (error) {
+      setDashboard({ statistics: {}, recent_tenders: [], vendorCount: 0 });
+    } finally {
+      setDashboardLoading(false);
     }
-  ]);
+  }, []);
+
+  useEffect(() => {
+    loadDashboard();
+    const refreshTimer = window.setInterval(loadDashboard, 15000);
+    return () => window.clearInterval(refreshTimer);
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    if (activeTab === 'dashboard') loadDashboard();
+  }, [activeTab, loadDashboard]);
+
+  useEffect(() => {
+    window.addEventListener('tenders:changed', loadDashboard);
+    return () => window.removeEventListener('tenders:changed', loadDashboard);
+  }, [loadDashboard]);
+
+  const dashboardStats = dashboard.statistics || {};
+  const recentTenders = dashboard.recent_tenders || [];
+  const formatCurrency = (amount, currency = 'USD') =>
+    new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number(amount || 0));
 
   return (
     <div>
@@ -226,8 +228,8 @@ function TenderXApp() {
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Active Tenders</span>
                   <FileText size={18} color="var(--primary)" />
                 </div>
-                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>24</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--emerald)', marginTop: '0.35rem' }}>↑ 4 new published this week</div>
+                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>{dashboardLoading ? '—' : dashboardStats.active_tenders || 0}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--emerald)', marginTop: '0.35rem' }}>Live count in ACTIVE status</div>
               </div>
 
               <div className="glass-card" style={{ padding: '1.25rem' }}>
@@ -235,8 +237,8 @@ function TenderXApp() {
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Submitted Bids</span>
                   <Gavel size={18} color="var(--cyan)" />
                 </div>
-                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>142</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--cyan)', marginTop: '0.35rem' }}>Encrypted & Tamper-Proof</div>
+                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>{dashboardLoading ? '—' : dashboardStats.submitted_bids || 0}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--cyan)', marginTop: '0.35rem' }}>Live bid records (bid module pending)</div>
               </div>
 
               <div className="glass-card" style={{ padding: '1.25rem' }}>
@@ -244,8 +246,8 @@ function TenderXApp() {
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Awarded Value</span>
                   <Award size={18} color="var(--emerald)" />
                 </div>
-                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>$18.4M</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--emerald)', marginTop: '0.35rem' }}>across 12 procurement contracts</div>
+                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>{dashboardLoading ? '—' : formatCurrency(dashboardStats.awarded_value)}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--emerald)', marginTop: '0.35rem' }}>Across {dashboardStats.awarded_contracts || 0} awarded tenders</div>
               </div>
 
               <div className="glass-card" style={{ padding: '1.25rem' }}>
@@ -253,8 +255,8 @@ function TenderXApp() {
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Registered Vendors</span>
                   <Building size={18} color="var(--accent)" />
                 </div>
-                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>380</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '0.35rem' }}>Verified Org Profiles</div>
+                <div style={{ fontSize: '1.75rem', fontWeight: '800' }}>{dashboardLoading ? '—' : dashboard.vendorCount || 0}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '0.35rem' }}>Live registered vendor profiles</div>
               </div>
             </div>
 
@@ -263,7 +265,7 @@ function TenderXApp() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                 <div>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: '800' }}>Recent Procurement Opportunities & Status</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Active public tenders open for bidding</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Latest tenders from your live tender workflow</p>
                 </div>
                 <button onClick={() => setActiveTab('tenders')} className="btn-action" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}>
                   View All Tenders
@@ -278,32 +280,33 @@ function TenderXApp() {
                       <th style={{ padding: '0.75rem' }}>Title & Description</th>
                       <th style={{ padding: '0.75rem' }}>Category</th>
                       <th style={{ padding: '0.75rem' }}>Est. Value</th>
-                      <th style={{ padding: '0.75rem' }}>EMD Fee</th>
                       <th style={{ padding: '0.75rem' }}>Deadline</th>
                       <th style={{ padding: '0.75rem' }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tenders.map((t) => (
+                    {recentTenders.map((t) => (
                       <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <td style={{ padding: '0.75rem' }} className="code-font">{t.id}</td>
+                        <td style={{ padding: '0.75rem' }} className="code-font">{t.tender_number}</td>
                         <td style={{ padding: '0.75rem' }}>
                           <div style={{ fontWeight: '700' }}>{t.title}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t.organization}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t.effective_org_name}</div>
                         </td>
                         <td style={{ padding: '0.75rem' }}>
-                          <span className="badge badge-primary">{t.category}</span>
+                          <span className="badge badge-primary">{t.category_name || 'General'}</span>
                         </td>
-                        <td style={{ padding: '0.75rem', fontWeight: '700' }}>{t.estimated_cost}</td>
-                        <td style={{ padding: '0.75rem' }}>{t.emd_amount}</td>
-                        <td style={{ padding: '0.75rem' }} className="code-font">{t.submission_deadline}</td>
+                        <td style={{ padding: '0.75rem', fontWeight: '700' }}>{formatCurrency(t.budget, t.currency)}</td>
+                        <td style={{ padding: '0.75rem' }} className="code-font">{t.submission_deadline ? new Date(t.submission_deadline).toLocaleDateString() : 'Not set'}</td>
                         <td style={{ padding: '0.75rem' }}>
-                          <span className={`badge ${t.status === 'Published' ? 'badge-success' : 'badge-warning'}`}>
+                          <span className={`badge ${['ACTIVE', 'AWARDED'].includes(t.status) ? 'badge-success' : 'badge-warning'}`}>
                             {t.status}
                           </span>
                         </td>
                       </tr>
                     ))}
+                    {!dashboardLoading && recentTenders.length === 0 && (
+                      <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No tenders have been created yet.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>

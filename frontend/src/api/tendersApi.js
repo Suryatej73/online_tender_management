@@ -37,6 +37,13 @@ function getAuthHeaders() {
 
 export const tendersApi = {
   // Tender CRUD & Search
+  async getDashboard() {
+    const response = await fetch(`${API_BASE_URL}/tenders/dashboard/`, {
+      headers: getAuthHeaders()
+    });
+    return handleResponse(response);
+  },
+
   async getTenders(filters = {}) {
     const query = new URLSearchParams();
     if (filters.search) query.append('search', filters.search);
