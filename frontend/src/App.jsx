@@ -10,6 +10,7 @@ import UserManagementDashboard from './components/users/UserManagementDashboard'
 import PermissionMatrix from './components/users/PermissionMatrix';
 import AddEditUserModal from './components/users/AddEditUserModal';
 import TenderManagementDashboard from './components/tenders/TenderManagementDashboard';
+import DocumentManagementDashboard from './components/documents/DocumentManagementDashboard';
 
 import { 
   ShieldCheck, 
@@ -182,6 +183,13 @@ function TenderXApp() {
               <FileText size={16} /> Tenders & BOQ Catalog
             </button>
             <button 
+              onClick={() => setActiveTab('documents')} 
+              style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'documents' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'documents' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+            >
+              <FileCheck size={16} /> Document Center (M8)
+            </button>
+
+            <button 
               onClick={() => setActiveTab('bids')} 
               style={{ padding: '0.6rem 1.1rem', borderRadius: '8px', background: activeTab === 'bids' ? 'var(--primary)' : 'transparent', border: 'none', color: activeTab === 'bids' ? '#ffffff' : 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
             >
@@ -313,6 +321,10 @@ function TenderXApp() {
 
         {/* Tenders & BOQ Catalog View */}
         {activeTab === 'tenders' && <TenderManagementDashboard />}
+
+        {/* Document Center (Module 8) View */}
+        {activeTab === 'documents' && <DocumentManagementDashboard currentUser={user} />}
+
 
 
         {/* Bidding & Evaluation View */}

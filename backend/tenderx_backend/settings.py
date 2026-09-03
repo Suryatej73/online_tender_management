@@ -43,8 +43,10 @@ except ImportError:
 INSTALLED_APPS.append('core.apps.CoreConfig')
 INSTALLED_APPS.append('accounts.apps.AccountsConfig')
 INSTALLED_APPS.append('tenders.apps.TendersConfig')
+INSTALLED_APPS.append('documents.apps.DocumentsConfig')
 
 AUTH_USER_MODEL = 'accounts.User'
+
 
 
 
@@ -190,3 +192,16 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+# Document Management Storage & Cloud Configuration (Module 8)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', 'tenderx-documents')
+AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
+AWS_KMS_KEY_ID = os.getenv('AWS_KMS_KEY_ID', '')
+AWS_S3_CUSTOM_ENDPOINT = os.getenv('AWS_S3_CUSTOM_ENDPOINT', '')
+STORAGE_PROVIDER = os.getenv('STORAGE_PROVIDER', 'AUTO')
+DOCUMENT_PRESIGNED_EXPIRATION_SECONDS = int(os.getenv('DOCUMENT_PRESIGNED_EXPIRATION_SECONDS', '900'))  # 15 mins default
+
