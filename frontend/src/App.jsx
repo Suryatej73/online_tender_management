@@ -11,6 +11,7 @@ import PermissionMatrix from './components/users/PermissionMatrix';
 import AddEditUserModal from './components/users/AddEditUserModal';
 import TenderManagementDashboard from './components/tenders/TenderManagementDashboard';
 import VendorManagementDashboard from './components/vendors/VendorManagementDashboard';
+import BidManagementDashboard from './components/bids/BidManagementDashboard';
 import { tendersApi } from './api/tendersApi';
 import { vendorsApi } from './api/vendorsApi';
 
@@ -325,18 +326,7 @@ function TenderXApp() {
 
 
         {/* Bidding & Evaluation View */}
-        {activeTab === 'bids' && (
-          <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
-            <Gavel size={36} color="var(--cyan)" style={{ marginBottom: '0.75rem' }} />
-            <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginBottom: '0.5rem' }}>Bid Submission & Evaluation Portal</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '600px', margin: '0 auto 1.5rem' }}>
-              Two-Envelope Encrypted Bid Submissions, Technical Scoring Matrix, and Financial Unsealing Engine.
-            </p>
-            <button onClick={() => setActiveTab('tenders')} className="btn-action">
-              Explore Active Tenders to Submit Bid
-            </button>
-          </div>
-        )}
+        {activeTab === 'bids' && <BidManagementDashboard />}
 
         {/* User Management Tab */}
         {activeTab === 'users' && <UserManagementDashboard />}
