@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 
 
+
 function TenderXApp() {
   const { user, logout } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
