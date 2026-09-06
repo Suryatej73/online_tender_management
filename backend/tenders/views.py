@@ -60,17 +60,36 @@ class TenderDashboardView(APIView):
         tenders = Tender.objects.filter(is_deleted=False)
         awarded = tenders.filter(status=TenderStatus.AWARDED)
 
-        # The project does not yet have a bid persistence model.  Returning zero
-        # makes that limitation explicit instead of showing a fabricated value.
+        submitted_bids = 0
+        try:
+            from bids.models import Bid, BidStatus
+            submitted_bids = Bid.objects.filter(is_deleted=False).exclude(status=BidStatus.DRAFT).count()
+        except Exception:
+            submitted_bids = 0
+
+        total_budget = tenders.aggregate(total=Sum('budget'))['total'] or 0
+        awarded_val = awarded.aggregate(total=Sum('budget'))['total'] or 0
+
+        status_counts = {
+            'draft': tenders.filter(status=TenderStatus.DRAFT).count(),
+            'published': tenders.filter(status=TenderStatus.PUBLISHED).count(),
+            'active': tenders.filter(status=TenderStatus.ACTIVE).count(),
+            'evaluation': tenders.filter(status=TenderStatus.EVALUATION).count(),
+            'awarded': awarded.count(),
+            'closed': tenders.filter(status=TenderStatus.CLOSED).count(),
+        }
+
         return Response({
             "success": True,
             "data": {
                 "statistics": {
                     "active_tenders": tenders.filter(status=TenderStatus.ACTIVE).count(),
-                    "submitted_bids": 0,
-                    "awarded_value": awarded.aggregate(total=Sum('budget'))['total'] or 0,
+                    "submitted_bids": submitted_bids,
+                    "total_budget": float(total_budget),
+                    "awarded_value": float(awarded_val),
                     "awarded_contracts": awarded.count(),
                     "total_tenders": tenders.count(),
+                    "status_counts": status_counts,
                 },
                 "recent_tenders": TenderSerializer(
                     tenders.select_related('category', 'organization').order_by('-created_at')[:8],

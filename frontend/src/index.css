@@ -31,16 +31,16 @@
   --border-subtle: rgba(255, 255, 255, 0.05);
   --border-muted: rgba(255, 255, 255, 0.08);
   --border-default: rgba(255, 255, 255, 0.12);
-  --border-focus: rgba(99, 130, 255, 0.5);
-  --border-glow: rgba(99, 130, 255, 0.35);
-  --border-gradient: linear-gradient(135deg, rgba(99, 130, 255, 0.4), rgba(56, 189, 248, 0.2), rgba(168, 85, 247, 0.3));
+  --border-focus: rgba(249, 115, 22, 0.5);
+  --border-glow: rgba(249, 115, 22, 0.35);
+  --border-gradient: linear-gradient(135deg, rgba(249, 115, 22, 0.4), rgba(251, 146, 60, 0.2), rgba(234, 88, 12, 0.3));
 
   /* ── Accent Colors ── */
-  --primary: #6366f1;
-  --primary-light: #818cf8;
-  --primary-dark: #4f46e5;
-  --primary-glow: rgba(99, 102, 241, 0.35);
-  --primary-surface: rgba(99, 102, 241, 0.12);
+  --primary: #f97316;
+  --primary-light: #fb923c;
+  --primary-dark: #ea580c;
+  --primary-glow: rgba(249, 115, 22, 0.35);
+  --primary-surface: rgba(249, 115, 22, 0.12);
 
   --accent: #38bdf8;
   --accent-glow: rgba(56, 189, 248, 0.3);

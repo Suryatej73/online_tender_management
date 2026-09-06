@@ -3,20 +3,87 @@ from django.utils import timezone
 try:
     from rest_framework import serializers
 except ImportError:
+    class _DummyValidationError(Exception):
+        def __init__(self, detail=None, *args, **kwargs):
+            self.detail = detail
+            super().__init__(str(detail) if detail else "")
     class DummyField:
         def __init__(self, *args, **kwargs): pass
     class DummySerializer:
         def __init__(self, instance=None, data=None, many=False, **kwargs):
             self.instance = instance
-            self._data = data or {}
+            self._data = dict(data or {})
+            self._kwargs = kwargs
+            self.many = many
+            self._errors = {}
             if instance is not None:
-                self.data = {'id': str(getattr(instance, 'id', ''))}
+                if many or (isinstance(instance, (list, tuple)) or (hasattr(instance, '__iter__') and not hasattr(instance, 'pk'))):
+                    self.data = [
+                        {'id': str(getattr(u, 'id', ''))}
+                        for u in instance
+                    ]
+                else:
+                    self.data = {'id': str(getattr(instance, 'id', ''))}
             else:
-                self.data = data or {}
-        def is_valid(self): return True
+                self.data = dict(data or {})
+
+        def is_valid(self, raise_exception=False):
+            self._errors = {}
+            for attr_name in dir(self):
+                if attr_name.startswith('validate_') and callable(getattr(self, attr_name)):
+                    field_name = attr_name[len('validate_'):]
+                    if field_name in self._data:
+                        try:
+                            self._data[field_name] = getattr(self, attr_name)(self._data[field_name])
+                        except (serializers.ValidationError, _DummyValidationError, Exception) as e:
+                            self._errors[field_name] = [str(getattr(e, 'detail', e))]
+                elif attr_name == 'validate' and callable(getattr(self, attr_name)):
+                    try:
+                        self._data = getattr(self, attr_name)(self._data)
+                    except (serializers.ValidationError, _DummyValidationError, Exception) as e:
+                        self._errors['non_field_errors'] = [str(getattr(e, 'detail', e))]
+            if self._errors:
+                if raise_exception:
+                    raise serializers.ValidationError(self._errors)
+                return False
+            return True
+
         @property
-        def validated_data(self): return self._data
-        def save(self): return self.instance
+        def errors(self):
+            return self._errors
+
+        @property
+        def validated_data(self):
+            return dict(self._data)
+
+        def save(self, **kwargs):
+            all_data = {**self._data, **kwargs}
+            if self.instance is not None:
+                for k, v in all_data.items():
+                    if hasattr(self.instance, k):
+                        setattr(self.instance, k, v)
+                if hasattr(self.instance, 'save'):
+                    self.instance.save()
+                return self.instance
+            elif hasattr(self, 'Meta') and hasattr(self.Meta, 'model'):
+                model_cls = self.Meta.model
+                valid_kwargs = {}
+                for f in model_cls._meta.get_fields():
+                    if getattr(f, 'is_relation', False):
+                        if f.name in all_data:
+                            val = all_data[f.name]
+                            if val is not None and not hasattr(val, '_meta'):
+                                valid_kwargs[getattr(f, 'attname', f"{f.name}_id")] = val
+                            else:
+                                valid_kwargs[f.name] = val
+                        elif hasattr(f, 'attname') and f.attname in all_data:
+                            valid_kwargs[f.attname] = all_data[f.attname]
+                    elif hasattr(f, 'name') and f.name in all_data:
+                        valid_kwargs[f.name] = all_data[f.name]
+                self.instance = model_cls.objects.create(**valid_kwargs)
+                return self.instance
+            return self.instance
+
     class serializers:
         ModelSerializer = DummySerializer
         Serializer = DummySerializer
@@ -34,7 +101,7 @@ except ImportError:
         SerializerMethodField = DummyField
         EmailField = DummyField
         URLField = DummyField
-        class ValidationError(Exception): pass
+        ValidationError = _DummyValidationError
 
 
 from .models import (
