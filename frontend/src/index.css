@@ -1,9 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ============================================================
    tenderX Design System — Inspired by motion.dev
-   Refined dark aesthetic with spring animations & glow effects
+   Refined aesthetic with spring animations & glow effects
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
   /* ── Core Palette ── */
@@ -104,17 +109,13 @@ html {
 
 body {
   font-family: var(--font-sans);
-  background-color: var(--bg-dark);
-  color: var(--text-primary);
-  background-image:
-    radial-gradient(ellipse 80% 60% at 10% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 90% 100%, rgba(56, 189, 248, 0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 50% 0%, rgba(167, 139, 250, 0.04) 0%, transparent 50%);
-  background-attachment: fixed;
+  background-color: #f8fafc;
+  color: #1e293b;
   min-height: 100vh;
   line-height: 1.6;
   overflow-x: hidden;
 }
+
 
 /* ── Selection ── */
 ::selection {

@@ -11,11 +11,13 @@ export default function MFASetup() {
   const [msg, setMsg] = useState(null);
   const [error, setError] = useState(null);
 
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
   const initMfaSetup = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/auth/mfa/setup/', {
+      const res = await fetch(`${API_BASE}/auth/mfa/setup/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -37,7 +39,8 @@ export default function MFASetup() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/auth/mfa/verify-setup/', {
+      const res = await fetch(`${API_BASE}/auth/mfa/verify-setup/`, {
+
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
