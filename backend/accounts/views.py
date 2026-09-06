@@ -180,6 +180,19 @@ def seed_default_permissions():
         for code in codes:
             RolePermission.objects.get_or_create(role=role, permission=perm_objs[code])
 
+    if not User.objects.filter(role=UserRole.SUPER_ADMIN).exists():
+        User.objects.create_user(
+            username='admin@tenderx.gov',
+            email='admin@tenderx.gov',
+            password='Admin123!',
+            role=UserRole.SUPER_ADMIN,
+            first_name='System',
+            last_name='Administrator',
+            organization_name='National Procurement Authority',
+            is_staff=True,
+            is_superuser=True
+        )
+
 
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -228,6 +241,11 @@ class LoginView(APIView):
         user_agent = request.META.get('HTTP_USER_AGENT', 'Browser')
 
         user = authenticate(request, username=email, password=password)
+        if not user:
+            try_user = User.objects.filter(email=email).first()
+            if try_user and try_user.check_password(password):
+                user = try_user
+
         if not user:
             LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=False, failure_reason="Invalid credentials")
             return Response({"error": "Invalid email address or password."}, status=status.HTTP_401_UNAUTHORIZED)

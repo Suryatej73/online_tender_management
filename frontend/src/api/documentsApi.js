@@ -1,6 +1,4 @@
-// API service layer for Module 8: Document Management & Document Intelligence
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+const BASE_URL = '/api/v1';
 
 function getAuthHeaders(isJson = true) {
   const token = localStorage.getItem('access_token');

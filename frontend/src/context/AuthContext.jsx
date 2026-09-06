@@ -17,7 +17,15 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
     setTokens(tokenData);
     if (userData) localStorage.setItem('tenderx_user', JSON.stringify(userData));
-    if (tokenData) localStorage.setItem('tenderx_tokens', JSON.stringify(tokenData));
+    if (tokenData) {
+      localStorage.setItem('tenderx_tokens', JSON.stringify(tokenData));
+      if (typeof tokenData === 'object') {
+        if (tokenData.access) localStorage.setItem('access_token', tokenData.access);
+        if (tokenData.refresh) localStorage.setItem('refresh_token', tokenData.refresh);
+      } else if (typeof tokenData === 'string') {
+        localStorage.setItem('access_token', tokenData);
+      }
+    }
   };
 
   const logout = () => {
@@ -25,6 +33,8 @@ export const AuthProvider = ({ children }) => {
     setTokens(null);
     localStorage.removeItem('tenderx_user');
     localStorage.removeItem('tenderx_tokens');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   };
 
   const hasRole = (...roles) => {
