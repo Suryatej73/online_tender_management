@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import EvaluatorOversightPanel from './components/evaluators/EvaluatorOversightPanel';
+import AdminControlCenter from './components/admin/AdminControlCenter';
 import AuthModal from './components/AuthModal';
 import MFASetup from './components/MFASetup';
 import SessionManager from './components/SessionManager';
@@ -189,7 +190,14 @@ function TenderXApp() {
             </div>
           )}
 
-          {/* TAB 7: Users Administration (Admin role only) */}
+          {/* TAB 7: Enterprise Admin Governance (Super Admin / Org Admin) */}
+          {activeTab === 'admin_governance' && (
+            <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
+              <AdminControlCenter />
+            </div>
+          )}
+
+          {/* TAB 8: Users Administration (Admin role only) */}
           {activeTab === 'users' && (
             <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
               <UserManagementDashboard />

@@ -22,6 +22,7 @@ export default function PuritySidebar({ activeTab, onTabChange, currentUser, onL
   const accountItems = [
     { id: 'profile', label: 'Security & Profile', icon: User },
     ...(isAdmin ? [
+      { id: 'admin_governance', label: 'Admin Governance', icon: ShieldCheck },
       { id: 'users', label: 'User Directory', icon: Users },
       { id: 'rbac', label: 'RBAC Matrix', icon: ShieldCheck },
     ] : []),
