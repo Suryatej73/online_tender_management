@@ -225,7 +225,7 @@ class VendorListSerializer(serializers.ModelSerializer):
 
 class VendorDetailSerializer(serializers.ModelSerializer):
     display_rating = serializers.ReadOnlyField()
-    categories = VendorCategorySerializer(source='category_assignments', many=True, read_only=True)
+    categories = serializers.SerializerMethodField()
     documents = VendorDocumentSerializer(many=True, read_only=True)
     certifications = VendorCertificationSerializer(many=True, read_only=True)
     experience_records = VendorExperienceSerializer(many=True, read_only=True)
@@ -251,6 +251,10 @@ class VendorDetailSerializer(serializers.ModelSerializer):
             'categories', 'documents', 'certifications',
             'experience_records', 'status_history', 'display_rating',
         ]
+
+    def get_categories(self, obj):
+        cats = [assignment.category for assignment in obj.category_assignments.all() if assignment.category]
+        return VendorCategorySerializer(cats, many=True).data
 
     def get_user_name(self, obj):
         if obj.user:
