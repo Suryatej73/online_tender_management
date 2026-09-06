@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import {
   X,
@@ -11,17 +11,25 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
-  Smartphone
+  Smartphone,
+  Send,
+  Sparkles,
+  Check
 } from 'lucide-react';
 
 export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
   const { saveAuth } = useAuth();
   const [tab, setTab] = useState(initialTab || 'login');
+  const [showGooglePicker, setShowGooglePicker] = useState(false);
+  const [customGoogleEmail, setCustomGoogleEmail] = useState('');
+
+  const [otpStep, setOtpStep] = useState('send'); // 'send' | 'verify'
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
 
   React.useEffect(() => {
     if (initialTab) setTab(initialTab);
   }, [initialTab, isOpen]);
-
 
   const [formData, setFormData] = useState({
     email: '', password: '', password_confirm: '',
@@ -40,9 +48,6 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // In local development Vite proxies this path to Django, avoiding browser
-  // cross-origin restrictions. Docker or a deployment can override it with
-  // VITE_API_BASE_URL.
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
   const readApiResponse = async (response) => {
@@ -99,6 +104,81 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     }
   };
 
+  const handleGoogleLogin = async (googleEmail) => {
+    setLoading(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/google/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: googleEmail, id_token: 'mock_google_oauth_token' })
+      });
+      const data = await readApiResponse(res);
+      saveAuth(data.user, data.tokens);
+      setMsg(`Signed in with Google as ${data.user.email}!`);
+      setShowGooglePicker(false);
+      setTimeout(onClose, 800);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendOtp = async (e) => {
+    if (e) e.preventDefault();
+    const targetEmail = otpEmail || formData.email;
+    if (!targetEmail) {
+      setError('Please enter your email address to receive an OTP code.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/otp/send/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail })
+      });
+      const data = await readApiResponse(res);
+      setOtpEmail(targetEmail);
+      setOtpStep('verify');
+      setMsg(data.message || `6-digit OTP code dispatched to ${targetEmail} (Demo Code: 582914)`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    if (e) e.preventDefault();
+    if (!otpCode || otpCode.length < 6) {
+      setError('Please enter a valid 6-digit OTP code.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/otp/verify/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpEmail || formData.email, otp_code: otpCode })
+      });
+      const data = await readApiResponse(res);
+      saveAuth(data.user, data.tokens);
+      setMsg('OTP Authentication successful!');
+      setTimeout(onClose, 800);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleMfaSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -133,7 +213,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
       });
       const data = await readApiResponse(res);
       saveAuth(data.user, data.tokens);
-      setMsg(`Registered as ${data.user.role_display}!`);
+      setMsg(`Registered as ${data.user.role_display}! Verification email sent.`);
       setTimeout(onClose, 1200);
     } catch (err) {
       setError(err.message);
@@ -153,7 +233,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         body: JSON.stringify({ email: formData.email })
       });
       const data = await readApiResponse(res);
-      setMsg(data.message || 'Password reset link sent.');
+      setMsg(data.message || 'Password reset link sent to your email.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -161,6 +241,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     }
   };
 
+  const googleAccounts = [
+    { email: 'admin.procurement@gmail.com', name: 'Super Admin (TenderX Gov)', role: 'SUPER_ADMIN', avatar: 'A' },
+    { email: 'vendor.globaltech@gmail.com', name: 'GlobalTech Innovations', role: 'VENDOR', avatar: 'G' },
+    { email: 'authority.digital@gmail.com', name: 'Ministry of Digital Affairs', role: 'ORG_ADMIN', avatar: 'M' },
+  ];
 
   return (
     <motion.div
@@ -209,26 +294,31 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
           >
             <ShieldCheck size={28} />
           </motion.div>
-          <h2 style={{ fontSize: '1.35rem', fontWeight: '800', letterSpacing: '-0.02em' }}>tenderX Identity Portal</h2>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Secure JWT Authentication & Role Management</p>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: '800', letterSpacing: '-0.02em' }}>TenderX Identity Portal</h2>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>Secure Enterprise Authentication & Governance</p>
         </div>
 
         {/* Tab Navigation */}
         {tab !== 'mfa' && (
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', marginBottom: '1.5rem', gap: '0.25rem' }}>
-            {['login', 'register', 'reset_password'].map((t) => (
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', marginBottom: '1.25rem', gap: '0.25rem' }}>
+            {[
+              { id: 'login', label: 'Sign In' },
+              { id: 'otp', label: 'OTP Login' },
+              { id: 'register', label: 'Register' },
+              { id: 'reset_password', label: 'Reset' }
+            ].map((t) => (
               <motion.button
-                key={t}
+                key={t.id}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => setTab(t)}
+                onClick={() => { setTab(t.id); setError(null); setMsg(null); }}
                 style={{
                   flex: 1, padding: '0.65rem', background: 'none', border: 'none',
-                  borderBottom: tab === t ? '2px solid var(--primary)' : 'none',
-                  color: tab === t ? '#ffffff' : 'var(--text-dim)',
+                  borderBottom: tab === t.id ? '2px solid var(--primary)' : 'none',
+                  color: tab === t.id ? '#ffffff' : 'var(--text-dim)',
                   fontWeight: '650', fontSize: '0.82rem', cursor: 'pointer', transition: 'all 150ms',
                 }}
               >
-                {t === 'login' ? 'Sign In' : t === 'register' ? 'Register' : 'Reset'}
+                {t.label}
               </motion.button>
             ))}
           </div>
@@ -250,33 +340,118 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
 
         {/* Login Form */}
         {tab === 'login' && (
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600' }}>Email Address</label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{ position: 'absolute', left: '0.75rem', top: '0.75rem', color: 'var(--text-faint)' }} />
-                <input type="email" name="email" required value={formData.email} onChange={handleChange} placeholder="name@organization.com"
-                  style={{ width: '100%', padding: '0.7rem 0.75rem 0.7rem 2.4rem', borderRadius: 'var(--radius-md)', background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border-default)', color: '#ffffff', fontSize: '0.875rem', outline: 'none', transition: 'border-color 150ms' }}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
-                  onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
-                />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600' }}>Email Address</label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={16} style={{ position: 'absolute', left: '0.75rem', top: '0.75rem', color: 'var(--text-faint)' }} />
+                  <input type="email" name="email" required value={formData.email} onChange={handleChange} placeholder="name@organization.com"
+                    style={{ width: '100%', padding: '0.7rem 0.75rem 0.7rem 2.4rem', borderRadius: 'var(--radius-md)', background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border-default)', color: '#ffffff', fontSize: '0.875rem', outline: 'none', transition: 'border-color 150ms' }}
+                    onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
+                    onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
+                  />
+                </div>
               </div>
-            </div>
-            <div>
-              <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600' }}>Password</label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: '0.75rem', top: '0.75rem', color: 'var(--text-faint)' }} />
-                <input type="password" name="password" required value={formData.password} onChange={handleChange} placeholder="••••••••"
-                  style={{ width: '100%', padding: '0.7rem 0.75rem 0.7rem 2.4rem', borderRadius: 'var(--radius-md)', background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border-default)', color: '#ffffff', fontSize: '0.875rem', outline: 'none', transition: 'border-color 150ms' }}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
-                  onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
-                />
+              <div>
+                <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600' }}>Password</label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={16} style={{ position: 'absolute', left: '0.75rem', top: '0.75rem', color: 'var(--text-faint)' }} />
+                  <input type="password" name="password" required value={formData.password} onChange={handleChange} placeholder="••••••••"
+                    style={{ width: '100%', padding: '0.7rem 0.75rem 0.7rem 2.4rem', borderRadius: 'var(--radius-md)', background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border-default)', color: '#ffffff', fontSize: '0.875rem', outline: 'none', transition: 'border-color 150ms' }}
+                    onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
+                    onBlur={(e) => e.target.style.borderColor = 'var(--border-default)'}
+                  />
+                </div>
               </div>
+              <motion.button type="submit" disabled={loading} className="btn-action" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} style={{ width: '100%', justifyContent: 'center', marginTop: '0.25rem' }}>
+                {loading ? 'Authenticating...' : 'Sign In with JWT'}
+              </motion.button>
+            </form>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0.25rem 0' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>OR</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
             </div>
-            <motion.button type="submit" disabled={loading} className="btn-action" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
-              {loading ? 'Authenticating...' : 'Sign In with JWT'}
+
+            {/* Google Sign-in Button */}
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowGooglePicker(true)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
+                padding: '0.7rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.15)', color: '#ffffff', fontSize: '0.85rem', fontWeight: '600',
+                cursor: 'pointer', transition: 'background 150ms'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              <span>Sign in with Google</span>
             </motion.button>
-          </form>
+          </div>
+        )}
+
+        {/* 6-digit OTP Login Form */}
+        {tab === 'otp' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '0.25rem' }}>
+              <div style={{ display: 'inline-flex', padding: '0.5rem', borderRadius: '50%', background: 'rgba(255, 107, 0, 0.1)', color: '#ff6b00', marginBottom: '0.5rem' }}>
+                <Smartphone size={24} />
+              </div>
+              <h3 style={{ fontSize: '1rem', fontWeight: '750' }}>6-Digit OTP Verification</h3>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>Passwordless instant login via secure 6-digit one-time code</p>
+            </div>
+
+            {otpStep === 'send' ? (
+              <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600' }}>Email Address for OTP</label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={16} style={{ position: 'absolute', left: '0.75rem', top: '0.75rem', color: 'var(--text-faint)' }} />
+                    <input
+                      type="email" required
+                      value={otpEmail || formData.email}
+                      onChange={(e) => setOtpEmail(e.target.value)}
+                      placeholder="user@organization.com"
+                      style={{ width: '100%', padding: '0.7rem 0.75rem 0.7rem 2.4rem', borderRadius: 'var(--radius-md)', background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border-default)', color: '#ffffff', fontSize: '0.875rem', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+                <motion.button type="submit" disabled={loading} className="btn-action" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} style={{ width: '100%', justifyContent: 'center' }}>
+                  {loading ? 'Sending OTP Code...' : 'Send 6-Digit OTP Code'}
+                </motion.button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600' }}>Enter 6-Digit OTP Code</label>
+                  <input
+                    type="text" maxLength={6} required
+                    value={otpCode} onChange={(e) => setOtpCode(e.target.value)}
+                    placeholder="582914" className="code-font"
+                    style={{ width: '100%', padding: '0.85rem', borderRadius: 'var(--radius-md)', background: 'rgba(0,0,0,0.35)', border: '1px solid var(--primary)', color: '#ff6b00', fontSize: '1.5rem', letterSpacing: '0.4em', textAlign: 'center', outline: 'none' }}
+                  />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginTop: '0.4rem', textAlign: 'center' }}>
+                    Demo Master OTP: <strong style={{ color: '#ff6b00' }}>582914</strong>
+                  </span>
+                </div>
+                <motion.button type="submit" disabled={loading} className="btn-action" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} style={{ width: '100%', justifyContent: 'center' }}>
+                  {loading ? 'Verifying OTP...' : 'Verify OTP & Log In'}
+                </motion.button>
+                <button type="button" onClick={() => setOtpStep('send')} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '0.75rem', cursor: 'pointer', textAlign: 'center' }}>
+                  Change Email or Resend OTP
+                </button>
+              </form>
+            )}
+          </div>
         )}
 
         {/* MFA Form */}
@@ -316,7 +491,12 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
               </div>
             </div>
             <div>
-              <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600' }}>Email Address</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600' }}>Email Address</label>
+                <span style={{ fontSize: '0.68rem', color: 'var(--emerald)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                  <Check size={12} /> Email Verification Included
+                </span>
+              </div>
               <input type="email" name="email" required value={formData.email} onChange={handleChange} placeholder="user@company.com" className="input-control" style={{ marginTop: '0.3rem' }} />
             </div>
             <div>
@@ -345,7 +525,23 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
               </div>
             </div>
             <motion.button type="submit" disabled={loading} className="btn-action" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
-              {loading ? 'Registering...' : 'Create Account & Assign Role'}
+              {loading ? 'Registering...' : 'Create Account & Dispatch Verification Email'}
+            </motion.button>
+
+            {/* Google Quick Register option */}
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowGooglePicker(true)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                padding: '0.55rem', borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.1)', color: 'var(--text-dim)', fontSize: '0.78rem', fontWeight: '600',
+                cursor: 'pointer', marginTop: '0.2rem'
+              }}
+            >
+              <span>Or Register via Google Account</span>
             </motion.button>
           </form>
         )}
@@ -358,9 +554,97 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
               <input type="email" name="email" required value={formData.email} onChange={handleChange} placeholder="user@company.com" className="input-control" />
             </div>
             <motion.button type="submit" disabled={loading} className="btn-action" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} style={{ width: '100%', justifyContent: 'center' }}>
-              {loading ? 'Sending...' : 'Request Password Reset'}
+              {loading ? 'Sending Verification Link...' : 'Send Verification Email Link'}
             </motion.button>
           </form>
+        )}
+
+        {/* Google Account Picker Modal Overlay */}
+        {showGooglePicker && (
+          <div
+            style={{
+              position: 'absolute', inset: 0, zIndex: 110,
+              background: 'rgba(5, 8, 20, 0.96)', borderRadius: 'var(--radius-lg)',
+              padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+              backdropFilter: 'blur(10px)'
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '750', color: '#ffffff' }}>Choose a Google Account</h3>
+                </div>
+                <button onClick={() => setShowGooglePicker(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
+                  <X size={18} />
+                </button>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginBottom: '1.25rem' }}>
+                Select an account to continue to <strong>TenderX Procurement Platform</strong>:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                {googleAccounts.map((acc) => (
+                  <motion.button
+                    key={acc.email}
+                    whileHover={{ scale: 1.01, backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleGoogleLogin(acc.email)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem',
+                      borderRadius: 'var(--radius-md)', background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)', cursor: 'pointer', textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #ff6b00, #e65100)', color: '#ffffff', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', flexShrink: 0 }}>
+                      {acc.avatar}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#ffffff', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {acc.name}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {acc.email}
+                      </span>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* Custom Google Email Option */}
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', display: 'block', marginBottom: '0.3rem' }}>Use another Google Email</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="email"
+                    placeholder="your.email@gmail.com"
+                    value={customGoogleEmail}
+                    onChange={(e) => setCustomGoogleEmail(e.target.value)}
+                    className="input-control"
+                    style={{ flex: 1, fontSize: '0.82rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => customGoogleEmail && handleGoogleLogin(customGoogleEmail)}
+                    style={{ padding: '0.5rem 0.85rem', borderRadius: 'var(--radius-md)', background: '#ff6b00', color: '#ffffff', fontSize: '0.78rem', fontWeight: '700', border: 'none', cursor: 'pointer' }}
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center', paddingTop: '0.75rem' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>
+                By signing in with Google, you agree to TenderX Procurement Terms of Service.
+              </span>
+            </div>
+          </div>
         )}
       </motion.div>
     </motion.div>

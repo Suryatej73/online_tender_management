@@ -6,7 +6,8 @@ from .views import (
     UserListCreateView, UserDetailView, UserSuspendView, UserActivateView,
     UserVerifyView, UserAdminResetPasswordView, UserActivityView,
     UserDetailSessionsView, RolesView, PermissionsView, RolePermissionsUpdateView,
-    OrganizationsView, DepartmentsView
+    OrganizationsView, DepartmentsView, GoogleLoginView, SendOTPView, VerifyOTPView,
+    EvaluatorOversightView
 )
 
 urlpatterns = [
@@ -14,8 +15,12 @@ urlpatterns = [
     path('register/', RegisterView.as_view(), name='auth_register'),
     path('login/', LoginView.as_view(), name='auth_login'),
     path('login/mfa/', MFALoginView.as_view(), name='auth_login_mfa'),
+    path('google/', GoogleLoginView.as_view(), name='auth_google'),
+    path('otp/send/', SendOTPView.as_view(), name='auth_otp_send'),
+    path('otp/verify/', VerifyOTPView.as_view(), name='auth_otp_verify'),
     path('me/', UserProfileView.as_view(), name='auth_me'),
     path('email/verify/', EmailVerifyView.as_view(), name='auth_email_verify'),
+    path('admin/evaluators/', EvaluatorOversightView.as_view(), name='admin_evaluator_oversight'),
     path('password/reset-request/', PasswordResetRequestView.as_view(), name='auth_password_reset_request'),
     path('password/reset-confirm/', PasswordResetConfirmView.as_view(), name='auth_password_reset_confirm'),
     path('mfa/setup/', MFASetupView.as_view(), name='auth_mfa_setup'),
