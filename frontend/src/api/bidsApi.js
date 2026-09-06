@@ -3,6 +3,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 async function handleResponse(response) {
   if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('tenderx_tokens');
+    }
     let errorMsg = 'API Request failed';
     try {
       const errorData = await response.json();
