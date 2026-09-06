@@ -40,7 +40,36 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // In local development Vite proxies this path to Django, avoiding browser
+  // cross-origin restrictions. Docker or a deployment can override it with
+  // VITE_API_BASE_URL.
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
+  const readApiResponse = async (response) => {
+    const contentType = response.headers.get('content-type') || '';
+    const body = await response.text();
+
+    if (!contentType.includes('application/json')) {
+      const serviceHint = response.status === 0 || response.status === 502 || response.status === 503
+        ? 'Make sure the Django backend is running on http://127.0.0.1:8000.'
+        : 'Check that the request is being sent to the Django backend, not a static file server.';
+      throw new Error(`Authentication service returned HTTP ${response.status} instead of JSON. ${serviceHint}`);
+    }
+
+    try {
+      const data = body ? JSON.parse(body) : {};
+      if (!response.ok) {
+        const details = data.error || data.detail || data.message || Object.values(data).flat().join(' ');
+        throw new Error(details || `Authentication request failed (HTTP ${response.status}).`);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error('Authentication service returned invalid JSON. Please check the Django server logs.');
+      }
+      throw error;
+    }
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -53,8 +82,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, password: formData.password })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Invalid credentials.');
+      const data = await readApiResponse(res);
       if (data.mfa_required) {
         setMfaUserId(data.user_id);
         setTab('mfa');
@@ -81,8 +109,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: mfaUserId, totp_code: formData.totp_code })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Invalid TOTP code.');
+      const data = await readApiResponse(res);
       saveAuth(data.user, data.tokens);
       setMsg('MFA Authentication successful!');
       setTimeout(onClose, 800);
@@ -104,8 +131,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.password ? data.password[0] : (data.email ? data.email[0] : 'Registration failed.'));
+      const data = await readApiResponse(res);
       saveAuth(data.user, data.tokens);
       setMsg(`Registered as ${data.user.role_display}!`);
       setTimeout(onClose, 1200);
@@ -126,7 +152,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email })
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
       setMsg(data.message || 'Password reset link sent.');
     } catch (err) {
       setError(err.message);

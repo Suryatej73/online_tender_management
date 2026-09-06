@@ -196,6 +196,9 @@ def seed_default_permissions():
 
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
+    # Public token endpoints must not invoke SessionAuthentication, which
+    # otherwise rejects JSON POST requests that have no CSRF cookie.
+    authentication_classes = []
 
     def post(self, request):
         data = get_request_data(request)
@@ -226,6 +229,7 @@ class RegisterView(APIView):
 
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request):
         seed_default_permissions()
@@ -280,6 +284,7 @@ class LoginView(APIView):
 
 class MFALoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request):
         data = get_request_data(request)
@@ -294,6 +299,8 @@ class MFALoginView(APIView):
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
 
         if not user.is_mfa_enabled or not user.mfa_secret:
             return Response({"error": "MFA is not configured for this account."}, status=status.HTTP_400_BAD_REQUEST)
@@ -337,6 +344,7 @@ class UserProfileView(APIView):
 
 class EmailVerifyView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request):
         data = get_request_data(request)
@@ -372,6 +380,7 @@ class EmailVerifyView(APIView):
 
 class PasswordResetRequestView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request):
         data = get_request_data(request)
@@ -401,6 +410,7 @@ class PasswordResetRequestView(APIView):
 
 class PasswordResetConfirmView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request):
         data = get_request_data(request)
@@ -898,5 +908,3 @@ class AdminUserListView(APIView):
             }, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-
-
