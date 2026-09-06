@@ -14,9 +14,14 @@ import {
   Smartphone
 } from 'lucide-react';
 
-export default function AuthModal({ isOpen, onClose }) {
+export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
   const { saveAuth } = useAuth();
-  const [tab, setTab] = useState('login');
+  const [tab, setTab] = useState(initialTab || 'login');
+
+  React.useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab, isOpen]);
+
 
   const [formData, setFormData] = useState({
     email: '', password: '', password_confirm: '',

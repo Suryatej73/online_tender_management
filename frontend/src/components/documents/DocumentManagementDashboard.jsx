@@ -295,15 +295,13 @@ export default function DocumentManagementDashboard({ currentUser }) {
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white flex items-center gap-2">
-                Document Center
-                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  Module 8 Production
-                </span>
+                Documents
               </h1>
               <p className="text-slate-400 text-sm mt-0.5">
                 Secure S3 Storage, Cryptographic Integrity, OCR Text Extraction & Intelligence Engine
               </p>
             </div>
+
           </div>
         </div>
 
