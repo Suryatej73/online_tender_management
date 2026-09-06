@@ -13,10 +13,11 @@ import TenderManagementDashboard from './components/tenders/TenderManagementDash
 import VendorManagementDashboard from './components/vendors/VendorManagementDashboard';
 import BidManagementDashboard from './components/bids/BidManagementDashboard';
 import DocumentManagementDashboard from './components/documents/DocumentManagementDashboard';
-import ExplorePage from './components/explore/ExplorePage';
+import TenderXLanding from './components/landing/TenderXLanding';
 import PuritySidebar from './components/layout/PuritySidebar';
 import PurityNavbar from './components/layout/PurityNavbar';
 import PurityDashboardView from './components/dashboard/PurityDashboardView';
+
 
 import { tendersApi } from './api/tendersApi';
 import { vendorsApi } from './api/vendorsApi';
@@ -77,7 +78,7 @@ function TenderXApp() {
           </div>
         )}
 
-        <ExplorePage
+        <TenderXLanding
           onOpenLogin={() => {
             setAuthInitialTab('login');
             setAuthModalOpen(true);
@@ -87,6 +88,7 @@ function TenderXApp() {
             setAuthModalOpen(true);
           }}
         />
+
 
         {/* Global Auth Modal */}
         <AuthModal
