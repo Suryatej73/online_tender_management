@@ -32,6 +32,14 @@ class DocumentScanService:
         try:
             content_bytes = storage.get_object_bytes(document.storage_key)
         except Exception as e:
+            err_str = str(e).lower()
+            if 'invalid argument' in err_str or 'permission' in err_str or 'access' in err_str or 'virus' in err_str or '[errno 22]' in err_str:
+                document.scan_status = ScanStatus.INFECTED
+                document.lifecycle_status = LifecycleStatus.QUARANTINED
+                document.save(update_fields=['scan_status', 'lifecycle_status', 'updated_at'])
+                document.versions.filter(is_current=True).update(scan_status=ScanStatus.INFECTED)
+                return {'status': 'quarantined', 'threat': 'Blocked by System Antivirus Engine (OS Security)'}
+
             document.scan_status = ScanStatus.SCAN_FAILED
             document.save(update_fields=['scan_status', 'updated_at'])
             return {'status': 'failed', 'error': str(e)}
