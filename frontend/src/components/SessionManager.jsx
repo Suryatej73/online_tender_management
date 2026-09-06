@@ -9,12 +9,14 @@ export default function SessionManager() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
   const fetchSessions = async () => {
     if (!user) return;
     setLoading(true);
     try {
       const tokens = localStorage.getItem('tenderx_tokens') ? JSON.parse(localStorage.getItem('tenderx_tokens')) : null;
-      const res = await fetch('http://localhost:8000/api/v1/auth/sessions/', {
+      const res = await fetch(`${API_BASE}/auth/sessions/`, {
         headers: { 'Authorization': `Bearer ${tokens?.access || ''}` }
       });
       if (res.ok) {
@@ -35,7 +37,8 @@ export default function SessionManager() {
   const revokeSession = async (sessionId, revokeAll = false) => {
     try {
       const tokens = localStorage.getItem('tenderx_tokens') ? JSON.parse(localStorage.getItem('tenderx_tokens')) : null;
-      const res = await fetch('http://localhost:8000/api/v1/auth/sessions/revoke/', {
+      const res = await fetch(`${API_BASE}/auth/sessions/revoke/`, {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokens?.access || ''}` },
         body: JSON.stringify({ session_id: sessionId, revoke_all: revokeAll })

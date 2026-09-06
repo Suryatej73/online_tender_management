@@ -43,11 +43,12 @@ export default function SystemStatus() {
   const [health, setHealth] = useState(null);
   const [loading, setLoading] = useState(false);
   const [taskLog, setTaskLog] = useState([]);
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
   const fetchHealth = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/health/');
+      const res = await fetch(`${API_BASE}/health/`);
       if (res.ok) {
         const data = await res.json();
         setHealth(data);
@@ -68,7 +69,8 @@ export default function SystemStatus() {
   const triggerTask = async () => {
     const timestamp = new Date().toLocaleTimeString();
     try {
-      const res = await fetch('http://localhost:8000/api/v1/tasks/trigger/', { method: 'POST' });
+      const res = await fetch(`${API_BASE}/tasks/trigger/`, { method: 'POST' });
+
       if (res.ok) {
         const data = await res.json();
         setTaskLog(prev => [`[${timestamp}] ✓ SUCCESS: ${data.message} (ID: ${data.task_id.substring(0, 8)}...)`, ...prev]);

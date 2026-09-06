@@ -40,13 +40,15 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setMsg(null);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/auth/login/', {
+      const res = await fetch(`${API_BASE}/auth/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, password: formData.password })
@@ -74,7 +76,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/auth/login/mfa/', {
+      const res = await fetch(`${API_BASE}/auth/login/mfa/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: mfaUserId, totp_code: formData.totp_code })
@@ -97,7 +99,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setError(null);
     setMsg(null);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/auth/register/', {
+      const res = await fetch(`${API_BASE}/auth/register/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -119,7 +121,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/auth/password/reset-request/', {
+      const res = await fetch(`${API_BASE}/auth/password/reset-request/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email })
@@ -132,6 +134,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
       setLoading(false);
     }
   };
+
 
   return (
     <motion.div
