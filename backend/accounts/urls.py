@@ -16,7 +16,8 @@ from .admin_views import (
     AdminTenderMonitoringView, AdminTenderFlagView, AdminComplaintView,
     AdminComplaintResolveView, AdminRiskAlertView, AdminAnnouncementView,
     AdminAuditLogView, AdminAuditLogExportView, AdminSystemSettingsView,
-    AdminReportsView
+    AdminReportsView, AdminUserManagementView, AdminUserRoleUpdateView,
+    AdminUserStatusUpdateView
 )
 
 urlpatterns = [
@@ -45,7 +46,6 @@ urlpatterns = [
     path('users/<uuid:pk>/reset-password/', UserAdminResetPasswordView.as_view(), name='user_reset_password'),
     path('users/<uuid:pk>/activity/', UserActivityView.as_view(), name='user_activity'),
     path('users/<uuid:pk>/sessions/', UserDetailSessionsView.as_view(), name='user_sessions'),
-    path('admin/users/', AdminUserListView.as_view(), name='auth_admin_users'),
 
     # RBAC & Meta
     path('roles/', RolesView.as_view(), name='roles_list'),
@@ -58,6 +58,9 @@ urlpatterns = [
     path('admin/dashboard/', AdminDashboardView.as_view(), name='admin_dashboard'),
     path('admin/statistics/', AdminDashboardView.as_view(), name='admin_statistics'),
     path('admin/evaluators/', EvaluatorOversightView.as_view(), name='admin_evaluator_oversight'),
+    path('admin/users/', AdminUserManagementView.as_view(), name='auth_admin_users'),
+    path('admin/users/<uuid:pk>/role/', AdminUserRoleUpdateView.as_view(), name='admin_user_role_update'),
+    path('admin/users/<uuid:pk>/status/', AdminUserStatusUpdateView.as_view(), name='admin_user_status_update'),
     path('admin/organizations/', AdminOrganizationView.as_view(), name='admin_organizations'),
     path('admin/organizations/<uuid:pk>/verify/', AdminOrganizationVerifyView.as_view(), name='admin_org_verify'),
     path('admin/vendors/', AdminVendorManagementView.as_view(), name='admin_vendors'),

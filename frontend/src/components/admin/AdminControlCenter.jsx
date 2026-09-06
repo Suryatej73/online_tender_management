@@ -21,6 +21,10 @@ export default function AdminControlCenter() {
   const [riskAlerts, setRiskAlerts] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [systemSettings, setSystemSettings] = useState([]);
+  const [usersList, setUsersList] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   // Modals & Action States
   const [selectedEntity, setSelectedEntity] = useState(null);
@@ -125,10 +129,63 @@ export default function AdminControlCenter() {
     } catch (err) { }
   };
 
+  const fetchUsersList = async () => {
+    try {
+      const res = await fetch('/api/v1/admin/users/', { headers });
+      const data = await res.json();
+      setUsersList(data.users || []);
+    } catch (err) { }
+  };
+
+  const handleUserRoleChange = async (user) => {
+    const newRole = prompt(
+      `Assign new role for ${user.email}:\nSUPER_ADMIN, ORG_ADMIN, TENDER_MANAGER, EVALUATOR, VENDOR, AUDITOR`,
+      user.role
+    );
+    if (!newRole || newRole.trim().toUpperCase() === user.role) return;
+
+    try {
+      const res = await fetch(`/api/v1/admin/users/${user.id}/role/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ role: newRole.trim().toUpperCase() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update user role.');
+      setSuccessMsg(data.message);
+      fetchUsersList();
+      fetchDashboard();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleUserStatusToggle = async (user) => {
+    const targetAction = user.status === 'SUSPENDED' ? 'ACTIVATE' : 'SUSPEND';
+    const reason = prompt(`Reason for ${targetAction.toLowerCase()}ing ${user.email}:`, targetAction === 'ACTIVATE' ? 'Account reinstated by admin' : 'Policy compliance review');
+    if (reason === null) return;
+
+    try {
+      const res = await fetch(`/api/v1/admin/users/${user.id}/status/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: targetAction, reason })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update user status.');
+      setSuccessMsg(data.message);
+      fetchUsersList();
+      fetchDashboard();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   useEffect(() => {
     fetchDashboard();
     fetchOrganizations();
     fetchVendors();
+    fetchUsersList();
     fetchBlacklists();
     fetchCategories();
     fetchTenders();
@@ -313,8 +370,9 @@ export default function AdminControlCenter() {
       <div className="flex flex-wrap border-b border-white/10 gap-1 pb-1">
         {[
           { id: 'overview', label: 'Platform Overview', icon: Activity },
+          { id: 'users', label: 'User Directory & Roles', icon: Users },
           { id: 'organizations', label: 'Organizations', icon: Building2 },
-          { id: 'vendors', label: 'Vendor Governance & Blacklist', icon: Users },
+          { id: 'vendors', label: 'Vendor Governance & Blacklist', icon: ShieldCheck },
           { id: 'categories', label: 'Categories', icon: FileSpreadsheet },
           { id: 'tenders', label: 'Tender Moderation', icon: FileText },
           { id: 'complaints', label: 'Complaints & Disputes', icon: MessageSquare },
@@ -418,6 +476,127 @@ export default function AdminControlCenter() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: User Accounts & Role Governance */}
+      {activeTab === 'users' && (
+        <div className="bg-[#0d1117] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
+          <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <Users className="w-4 h-4 text-orange-400" />
+                <span>All Platform Registered User Accounts ({usersList.length})</span>
+              </h3>
+              <p className="text-[11px] text-white/50 mt-0.5">
+                Central user directory listing all team members, super admins, organization admins, evaluators, and vendors
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-white/40" />
+                <input
+                  type="text"
+                  placeholder="Search name or email..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="pl-9 pr-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder:text-white/30 focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-orange-500/50"
+              >
+                <option value="" className="bg-[#0d1117] text-white">All Roles</option>
+                <option value="SUPER_ADMIN" className="bg-[#0d1117] text-white">Super Admin</option>
+                <option value="ORG_ADMIN" className="bg-[#0d1117] text-white">Organization Admin</option>
+                <option value="TENDER_MANAGER" className="bg-[#0d1117] text-white">Tender Manager</option>
+                <option value="EVALUATOR" className="bg-[#0d1117] text-white">Evaluator</option>
+                <option value="VENDOR" className="bg-[#0d1117] text-white">Vendor</option>
+                <option value="AUDITOR" className="bg-[#0d1117] text-white">Auditor</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-white/5 uppercase text-[10px] text-slate-400 font-bold">
+                <tr>
+                  <th className="p-3">User Account</th>
+                  <th className="p-3">Role</th>
+                  <th className="p-3">Organization</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Email Verified</th>
+                  <th className="p-3">Registered Date</th>
+                  <th className="p-3 text-right">RBAC Governance</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {usersList
+                  .filter(u => {
+                    const matchSearch = !userSearch || u.email.toLowerCase().includes(userSearch.toLowerCase()) || (u.full_name && u.full_name.toLowerCase().includes(userSearch.toLowerCase()));
+                    const matchRole = !roleFilter || u.role === roleFilter;
+                    const matchStatus = !statusFilter || u.status === statusFilter;
+                    return matchSearch && matchRole && matchStatus;
+                  })
+                  .map(u => (
+                    <tr key={u.id} className="hover:bg-white/5 transition">
+                      <td className="p-3 font-bold text-white">
+                        <div>{u.full_name}</div>
+                        <div className="text-[11px] text-slate-400 font-mono font-normal">{u.email}</div>
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                          {u.role_display}
+                        </span>
+                      </td>
+                      <td className="p-3">{u.organization_name}</td>
+                      <td className="p-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          u.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' :
+                          u.status === 'SUSPENDED' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
+                          'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                        }`}>
+                          {u.status_display}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        {u.is_email_verified ? (
+                          <span className="text-emerald-400 font-bold text-[11px] flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 font-bold text-[11px]">Unverified</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-slate-400">{new Date(u.created_at).toLocaleDateString()}</td>
+                      <td className="p-3 text-right space-x-1.5">
+                        <button
+                          onClick={() => handleUserRoleChange(u)}
+                          className="px-2.5 py-1 bg-white/10 text-white rounded text-[11px] font-bold hover:bg-white/20 transition"
+                        >
+                          Change Role
+                        </button>
+                        <button
+                          onClick={() => handleUserStatusToggle(u)}
+                          className={`px-2.5 py-1 rounded text-[11px] font-bold transition ${
+                            u.status === 'SUSPENDED' ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+                          }`}
+                        >
+                          {u.status === 'SUSPENDED' ? 'Activate' : 'Suspend'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                {usersList.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-4 text-center text-white/40 text-xs">No user accounts found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

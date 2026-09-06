@@ -778,3 +778,157 @@ class AdminReportsView(APIView):
                 'total_tenders': Tender.objects.count(),
                 'total_bids': Bid.objects.count()
             })
+
+
+# ──────────────────────────────────────────────
+# 12. USER DIRECTORY & ROLE GOVERNANCE
+# ──────────────────────────────────────────────
+
+class AdminUserManagementView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
+            return Response({"error": "Unauthorized: Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if getattr(request.user, 'role', None) not in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]:
+            return Response({"error": "Forbidden: Requires Super Admin or Org Admin role."}, status=status.HTTP_403_FORBIDDEN)
+
+        search = request.GET.get('search', '').strip()
+        role_filter = request.GET.get('role', '').strip()
+        status_filter = request.GET.get('status', '').strip()
+        org_filter = request.GET.get('organization', '').strip()
+
+        qs = User.objects.filter(is_deleted=False)
+        if search:
+            qs = qs.filter(
+                Q(email__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(username__icontains=search) |
+                Q(organization_name__icontains=search)
+            )
+        if role_filter:
+            qs = qs.filter(role=role_filter)
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        if org_filter:
+            qs = qs.filter(Q(organization_id=org_filter) | Q(organization_name__icontains=org_filter))
+
+        users_data = []
+        for u in qs:
+            users_data.append({
+                'id': str(u.id),
+                'email': u.email,
+                'username': u.username,
+                'first_name': u.first_name,
+                'last_name': u.last_name,
+                'full_name': u.full_name,
+                'role': u.role,
+                'role_display': u.get_role_display(),
+                'status': u.status,
+                'status_display': u.get_status_display(),
+                'organization_name': u.effective_organization_name,
+                'department_name': u.effective_department_name,
+                'position_title': u.position_title or '',
+                'phone_number': u.phone_number or '',
+                'is_email_verified': u.is_email_verified,
+                'is_mfa_enabled': u.is_mfa_enabled,
+                'last_login': u.last_login.isoformat() if u.last_login else None,
+                'created_at': u.created_at.isoformat()
+            })
+
+        return Response({
+            'users': users_data,
+            'count': len(users_data),
+            'total': len(users_data),
+            'metrics': {
+                'total': User.objects.filter(is_deleted=False).count(),
+                'active': User.objects.filter(is_deleted=False, status=UserStatus.ACTIVE).count(),
+                'pending': User.objects.filter(is_deleted=False, status=UserStatus.PENDING_VERIFICATION).count(),
+                'suspended': User.objects.filter(is_deleted=False, status=UserStatus.SUSPENDED).count(),
+                'super_admins': User.objects.filter(is_deleted=False, role=UserRole.SUPER_ADMIN).count(),
+                'org_admins': User.objects.filter(is_deleted=False, role=UserRole.ORG_ADMIN).count(),
+                'vendors': User.objects.filter(is_deleted=False, role=UserRole.VENDOR).count(),
+                'evaluators': User.objects.filter(is_deleted=False, role=UserRole.EVALUATOR).count(),
+            }
+        })
+
+
+class AdminUserRoleUpdateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
+            return Response({"error": "Unauthorized: Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'role', None) not in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]:
+            return Response({"error": "Forbidden: Requires Super Admin or Org Admin role."}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            user = User.objects.get(pk=pk)
+            data = get_request_data(request)
+            new_role = data.get('role')
+
+            if not new_role or new_role not in UserRole.values:
+                return Response({'error': f'Valid role is required. Choices: {", ".join(UserRole.values)}'}, status=400)
+
+            old_role = user.role
+            user.role = new_role
+            user.save()
+
+            log_platform_audit(
+                user=request.user,
+                action="USER_ROLE_UPDATED",
+                entity_type="User",
+                entity_id=user.id,
+                old_value={'role': old_role},
+                new_value={'role': new_role},
+                description=f"Updated role for {user.email} from {old_role} to {new_role}.",
+                request=request
+            )
+            return Response({'message': f"Role for {user.email} updated to {user.get_role_display()}.", 'user_id': str(user.id)})
+        except User.DoesNotExist:
+            return Response({'error': 'User account not found.'}, status=404)
+
+
+class AdminUserStatusUpdateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
+            return Response({"error": "Unauthorized: Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'role', None) not in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]:
+            return Response({"error": "Forbidden: Requires Super Admin or Org Admin role."}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            user = User.objects.get(pk=pk)
+            data = get_request_data(request)
+            action = data.get('action', 'ACTIVATE').upper()
+            reason = data.get('reason', '')
+
+            old_status = user.status
+            if action == 'SUSPEND':
+                user.status = UserStatus.SUSPENDED
+                UserSession.objects.filter(user=user).update(is_active=False)
+            elif action == 'VERIFY':
+                user.is_email_verified = True
+                user.status = UserStatus.ACTIVE
+            else:
+                user.status = UserStatus.ACTIVE
+
+            user.save()
+
+            log_platform_audit(
+                user=request.user,
+                action=f"USER_STATUS_{action}",
+                entity_type="User",
+                entity_id=user.id,
+                old_value={'status': old_status},
+                new_value={'status': user.status},
+                description=f"Admin {action} user {user.email}. Reason: {reason}",
+                request=request
+            )
+            return Response({'message': f"Status for {user.email} updated to {user.get_status_display()}.", 'user_id': str(user.id)})
+        except User.DoesNotExist:
+            return Response({'error': 'User account not found.'}, status=404)
+
