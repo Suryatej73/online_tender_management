@@ -6,7 +6,17 @@ from .views import (
     UserListCreateView, UserDetailView, UserSuspendView, UserActivateView,
     UserVerifyView, UserAdminResetPasswordView, UserActivityView,
     UserDetailSessionsView, RolesView, PermissionsView, RolePermissionsUpdateView,
-    OrganizationsView, DepartmentsView
+    OrganizationsView, DepartmentsView, GoogleLoginView, SendOTPView, VerifyOTPView,
+    EvaluatorOversightView
+)
+from .admin_views import (
+    AdminDashboardView, AdminOrganizationView, AdminOrganizationVerifyView,
+    AdminVendorManagementView, AdminVendorVerifyView, AdminVendorSuspendView,
+    AdminVendorBlacklistView, AdminBlacklistListView, AdminCategoryView,
+    AdminTenderMonitoringView, AdminTenderFlagView, AdminComplaintView,
+    AdminComplaintResolveView, AdminRiskAlertView, AdminAnnouncementView,
+    AdminAuditLogView, AdminAuditLogExportView, AdminSystemSettingsView,
+    AdminReportsView
 )
 
 urlpatterns = [
@@ -14,6 +24,9 @@ urlpatterns = [
     path('register/', RegisterView.as_view(), name='auth_register'),
     path('login/', LoginView.as_view(), name='auth_login'),
     path('login/mfa/', MFALoginView.as_view(), name='auth_login_mfa'),
+    path('google/', GoogleLoginView.as_view(), name='auth_google'),
+    path('otp/send/', SendOTPView.as_view(), name='auth_otp_send'),
+    path('otp/verify/', VerifyOTPView.as_view(), name='auth_otp_verify'),
     path('me/', UserProfileView.as_view(), name='auth_me'),
     path('email/verify/', EmailVerifyView.as_view(), name='auth_email_verify'),
     path('password/reset-request/', PasswordResetRequestView.as_view(), name='auth_password_reset_request'),
@@ -40,5 +53,28 @@ urlpatterns = [
     path('roles/<str:role_code>/permissions/', RolePermissionsUpdateView.as_view(), name='role_permissions_update'),
     path('organizations/', OrganizationsView.as_view(), name='organizations_list'),
     path('departments/', DepartmentsView.as_view(), name='departments_list'),
-]
 
+    # Full Enterprise Admin Module Endpoints (/api/v1/admin/*)
+    path('admin/dashboard/', AdminDashboardView.as_view(), name='admin_dashboard'),
+    path('admin/statistics/', AdminDashboardView.as_view(), name='admin_statistics'),
+    path('admin/evaluators/', EvaluatorOversightView.as_view(), name='admin_evaluator_oversight'),
+    path('admin/organizations/', AdminOrganizationView.as_view(), name='admin_organizations'),
+    path('admin/organizations/<uuid:pk>/verify/', AdminOrganizationVerifyView.as_view(), name='admin_org_verify'),
+    path('admin/vendors/', AdminVendorManagementView.as_view(), name='admin_vendors'),
+    path('admin/vendors/<uuid:pk>/verify/', AdminVendorVerifyView.as_view(), name='admin_vendor_verify'),
+    path('admin/vendors/<uuid:pk>/suspend/', AdminVendorSuspendView.as_view(), name='admin_vendor_suspend'),
+    path('admin/vendors/<uuid:pk>/blacklist/', AdminVendorBlacklistView.as_view(), name='admin_vendor_blacklist'),
+    path('admin/blacklists/', AdminBlacklistListView.as_view(), name='admin_blacklists'),
+    path('admin/categories/', AdminCategoryView.as_view(), name='admin_categories'),
+    path('admin/tenders/', AdminTenderMonitoringView.as_view(), name='admin_tenders'),
+    path('admin/tenders/<uuid:pk>/flag/', AdminTenderFlagView.as_view(), name='admin_tender_flag'),
+    path('admin/tenders/<uuid:pk>/cancel/', AdminTenderFlagView.as_view(), name='admin_tender_cancel'),
+    path('admin/complaints/', AdminComplaintView.as_view(), name='admin_complaints'),
+    path('admin/complaints/<uuid:pk>/resolve/', AdminComplaintResolveView.as_view(), name='admin_complaint_resolve'),
+    path('admin/risk-alerts/', AdminRiskAlertView.as_view(), name='admin_risk_alerts'),
+    path('admin/announcements/', AdminAnnouncementView.as_view(), name='admin_announcements'),
+    path('admin/audit-logs/', AdminAuditLogView.as_view(), name='admin_audit_logs'),
+    path('admin/audit-logs/export/', AdminAuditLogExportView.as_view(), name='admin_audit_export'),
+    path('admin/settings/', AdminSystemSettingsView.as_view(), name='admin_settings'),
+    path('admin/reports/<str:report_type>/', AdminReportsView.as_view(), name='admin_reports'),
+]

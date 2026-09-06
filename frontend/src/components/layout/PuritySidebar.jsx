@@ -6,24 +6,26 @@ import {
 } from 'lucide-react';
 
 export default function PuritySidebar({ activeTab, onTabChange, currentUser, onLogout, onExploreClick }) {
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ORG_ADMIN';
 
   const navItems = [
     { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
     { id: 'tenders', label: 'Tenders & BOQ', icon: FileText },
-    { id: 'bids', label: 'Bids & Proposals', icon: Gavel },
+    // Super Admin does NOT submit bids - only vendors and organization members view/submit bids
+    ...(!isSuperAdmin ? [{ id: 'bids', label: 'Bids & Proposals', icon: Gavel }] : []),
     { id: 'vendors', label: 'Vendor 360', icon: Building2 },
-    { id: 'documents', label: 'Documents', icon: FileCheck }, // strictly named "Documents"
-    { id: 'evaluations', label: 'Evaluations & Awards', icon: Award },
+    { id: 'documents', label: 'Documents', icon: FileCheck },
+    { id: 'evaluations', label: isSuperAdmin ? 'Evaluator Oversight' : 'Evaluations & Awards', icon: Award },
   ];
 
   const accountItems = [
     { id: 'profile', label: 'Security & Profile', icon: User },
     ...(isAdmin ? [
+      { id: 'admin_governance', label: 'Admin Governance', icon: ShieldCheck },
       { id: 'users', label: 'User Directory', icon: Users },
       { id: 'rbac', label: 'RBAC Matrix', icon: ShieldCheck },
     ] : []),
-    { id: 'system', label: 'System Health', icon: Server },
   ];
 
   return (

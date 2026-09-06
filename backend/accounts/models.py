@@ -240,3 +240,144 @@ class PasswordResetToken(models.Model):
     def __str__(self):
         return f"Password reset token for {self.user.email}"
 
+
+class ComplaintPriority(models.TextChoices):
+    LOW = 'LOW', _('Low')
+    NORMAL = 'NORMAL', _('Normal')
+    HIGH = 'HIGH', _('High')
+    CRITICAL = 'CRITICAL', _('Critical')
+
+
+class ComplaintStatus(models.TextChoices):
+    OPEN = 'OPEN', _('Open')
+    UNDER_REVIEW = 'UNDER_REVIEW', _('Under Review')
+    ESCALATED = 'ESCALATED', _('Escalated')
+    RESOLVED = 'RESOLVED', _('Resolved')
+    REJECTED = 'REJECTED', _('Rejected')
+    CLOSED = 'CLOSED', _('Closed')
+
+
+class Complaint(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    complaint_number = models.CharField(max_length=64, unique=True, db_index=True)
+    raised_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='complaints_raised')
+    against_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='complaints_against')
+    against_organization = models.ForeignKey(Organization, on_delete=models.SET_NULL, null=True, blank=True, related_name='complaints')
+    against_vendor = models.ForeignKey('vendors.Vendor', on_delete=models.SET_NULL, null=True, blank=True, related_name='complaints')
+    tender = models.ForeignKey('tenders.Tender', on_delete=models.SET_NULL, null=True, blank=True, related_name='complaints')
+    category = models.CharField(max_length=100, default='GENERAL')
+    subject = models.CharField(max_length=255)
+    description = models.TextField()
+    evidence_url = models.URLField(max_length=500, blank=True, null=True)
+    priority = models.CharField(max_length=20, choices=ComplaintPriority.choices, default=ComplaintPriority.NORMAL)
+    status = models.CharField(max_length=20, choices=ComplaintStatus.choices, default=ComplaintStatus.OPEN, db_index=True)
+    assigned_admin = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_complaints')
+    resolution_notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.complaint_number}] {self.subject} ({self.get_status_display()})"
+
+
+class RiskSeverity(models.TextChoices):
+    LOW = 'LOW', _('Low')
+    MEDIUM = 'MEDIUM', _('Medium')
+    HIGH = 'HIGH', _('High')
+    CRITICAL = 'CRITICAL', _('Critical')
+
+
+class RiskStatus(models.TextChoices):
+    NEW = 'NEW', _('New')
+    INVESTIGATING = 'INVESTIGATING', _('Investigating')
+    CONFIRMED = 'CONFIRMED', _('Confirmed')
+    FALSE_POSITIVE = 'FALSE_POSITIVE', _('False Positive')
+    RESOLVED = 'RESOLVED', _('Resolved')
+
+
+class RiskAlert(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    alert_code = models.CharField(max_length=64, unique=True, db_index=True)
+    severity = models.CharField(max_length=20, choices=RiskSeverity.choices, default=RiskSeverity.MEDIUM)
+    entity_type = models.CharField(max_length=100)
+    entity_id = models.CharField(max_length=255, blank=True, null=True)
+    reason = models.TextField()
+    status = models.CharField(max_length=20, choices=RiskStatus.choices, default=RiskStatus.NEW, db_index=True)
+    assigned_admin = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_risk_alerts')
+    resolution_notes = models.TextField(blank=True, null=True)
+    detected_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-detected_at']
+
+    def __str__(self):
+        return f"Risk [{self.alert_code}] {self.entity_type} ({self.get_severity_display()})"
+
+
+class TargetAudience(models.TextChoices):
+    ALL = 'ALL', _('All Platform Users')
+    VENDOR = 'VENDOR', _('Vendors Only')
+    ORGANIZATION = 'ORGANIZATION', _('Organizations Only')
+    EVALUATOR = 'EVALUATOR', _('Evaluators Only')
+
+
+class PlatformAnnouncement(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    priority = models.CharField(max_length=20, choices=ComplaintPriority.choices, default=ComplaintPriority.NORMAL)
+    target_audience = models.CharField(max_length=30, choices=TargetAudience.choices, default=TargetAudience.ALL)
+    start_date = models.DateTimeField(default=timezone.now)
+    end_date = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Announcement: {self.title}"
+
+
+class SystemSetting(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    key = models.CharField(max_length=100, unique=True, db_index=True)
+    value = models.TextField()
+    category = models.CharField(max_length=50, default='SYSTEM')
+    description = models.TextField(blank=True, null=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category', 'key']
+
+    def __str__(self):
+        return f"{self.key} = {self.value}"
+
+
+class PlatformAuditLog(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='platform_audit_logs')
+    user_email = models.CharField(max_length=255, blank=True, null=True)
+    user_role = models.CharField(max_length=50, blank=True, null=True)
+    action = models.CharField(max_length=100, db_index=True)
+    entity_type = models.CharField(max_length=100, db_index=True)
+    entity_id = models.CharField(max_length=255, blank=True, null=True)
+    old_value = models.JSONField(default=dict, blank=True, null=True)
+    new_value = models.JSONField(default=dict, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"[{self.action}] {self.entity_type}:{self.entity_id} by {self.user_email or 'System'} at {self.timestamp}"
+
+

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import SystemStatus from './components/SystemStatus';
+import EvaluatorOversightPanel from './components/evaluators/EvaluatorOversightPanel';
+import AdminControlCenter from './components/admin/AdminControlCenter';
 import AuthModal from './components/AuthModal';
 import MFASetup from './components/MFASetup';
 import SessionManager from './components/SessionManager';
@@ -178,14 +179,25 @@ function TenderXApp() {
             </div>
           )}
 
-          {/* TAB 6: Evaluations & Audits */}
+          {/* TAB 6: Evaluations & Audits / Evaluator Oversight */}
           {activeTab === 'evaluations' && (
             <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
-              <BidManagementDashboard initialTab="evaluations" />
+              {user?.role === 'SUPER_ADMIN' ? (
+                <EvaluatorOversightPanel />
+              ) : (
+                <BidManagementDashboard initialTab="evaluations" />
+              )}
             </div>
           )}
 
-          {/* TAB 7: Users Administration (Admin role only) */}
+          {/* TAB 7: Enterprise Admin Governance (Super Admin / Org Admin) */}
+          {activeTab === 'admin_governance' && (
+            <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
+              <AdminControlCenter />
+            </div>
+          )}
+
+          {/* TAB 8: Users Administration (Admin role only) */}
           {activeTab === 'users' && (
             <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
               <UserManagementDashboard />
@@ -235,13 +247,6 @@ function TenderXApp() {
                   <SessionManager />
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* TAB 10: System Telemetry & Health */}
-          {activeTab === 'system' && (
-            <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
-              <SystemStatus />
             </div>
           )}
         </main>

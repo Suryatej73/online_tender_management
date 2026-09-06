@@ -256,15 +256,21 @@ class LocalStorageProvider(StorageProvider):
     """
 
     def __init__(self):
-        self.base_dir = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, 'media'))
-        self.documents_dir = os.path.join(self.base_dir, 'documents')
-        os.makedirs(self.documents_dir, exist_ok=True)
         self.bucket = 'local-storage-bucket'
 
+    @property
+    def documents_dir(self):
+        base = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, 'media'))
+        d = os.path.join(base, 'documents')
+        os.makedirs(d, exist_ok=True)
+        return d
+
     def _get_abs_path(self, storage_key):
-        clean_key = storage_key.lstrip('/')
-        full_path = os.path.join(self.documents_dir, clean_key)
+        clean_key = storage_key.lstrip('/').replace('/', os.sep)
+        full_path = os.path.abspath(os.path.normpath(os.path.join(self.documents_dir, clean_key)))
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        if os.name == 'nt' and not full_path.startswith('\\\\?\\') and len(full_path) >= 240:
+            full_path = '\\\\?\\' + full_path
         return full_path
 
     def generate_upload_url(self, storage_key, mime_type, expires_in=900):
@@ -332,6 +338,7 @@ class LocalStorageProvider(StorageProvider):
 
     def upload_bytes(self, storage_key, content_bytes, mime_type='application/pdf'):
         abs_path = self._get_abs_path(storage_key)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
         with open(abs_path, 'wb') as f:
             f.write(content_bytes)
         return storage_key
