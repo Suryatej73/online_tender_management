@@ -78,23 +78,28 @@ def log_activity(user, action, resource=None, details=None, request=None, status
     """Utility to record audit-trail activity logs for user actions."""
     if not user or not hasattr(user, 'id'):
         return
-    ip = None
-    user_agent = None
-    if request:
-        ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
-        if ip and ',' in ip:
-            ip = ip.split(',')[0].strip()
-        user_agent = request.META.get('HTTP_USER_AGENT', 'Browser')
+    try:
+        ip = None
+        user_agent = None
+        if request:
+            ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
+            if ip and ',' in ip:
+                ip = ip.split(',')[0].strip()
+            if ip and ':' in ip and '.' in ip:
+                ip = ip.split(':')[0]
+            user_agent = request.META.get('HTTP_USER_AGENT', 'Browser')
 
-    UserActivity.objects.create(
-        user=user,
-        action=action,
-        resource=resource or 'User Management System',
-        details=details or f'Executed action {action}',
-        ip_address=ip,
-        user_agent=user_agent,
-        status=status_code
-    )
+        UserActivity.objects.create(
+            user=user,
+            action=action,
+            resource=resource or 'User Management System',
+            details=details or f'Executed action {action}',
+            ip_address=ip or '127.0.0.1',
+            user_agent=user_agent or 'Browser',
+            status=status_code
+        )
+    except Exception as e:
+        print(f"[WARN] Failed to log user activity: {e}")
 
 
 def get_tokens_for_user(user):
@@ -121,20 +126,31 @@ def get_tokens_for_user(user):
 
 def record_user_session(user, request, refresh_jti):
     """Record active user login session."""
-    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
-    if ip and ',' in ip:
-        ip = ip.split(',')[0].strip()
-    user_agent = request.META.get('HTTP_USER_AGENT', 'Browser Agent')
-    
-    UserSession.objects.create(
-        user=user,
-        refresh_token_jti=refresh_jti or str(uuid.uuid4()),
-        ip_address=ip,
-        user_agent=user_agent,
-        device_type="Desktop Browser" if "Mobi" not in user_agent else "Mobile Device",
-        location="Primary Office",
-        is_active=True
-    )
+    if not user or not hasattr(user, 'id'):
+        return
+    try:
+        ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
+        if ip and ',' in ip:
+            ip = ip.split(',')[0].strip()
+        if ip and ':' in ip and '.' in ip:
+            ip = ip.split(':')[0]
+        user_agent = request.META.get('HTTP_USER_AGENT', 'Browser Agent')
+
+        jti = str(refresh_jti) if refresh_jti else str(uuid.uuid4())
+        if UserSession.objects.filter(refresh_token_jti=jti).exists():
+            jti = f"{jti}_{uuid.uuid4().hex[:8]}"
+
+        UserSession.objects.create(
+            user=user,
+            refresh_token_jti=jti,
+            ip_address=ip or '127.0.0.1',
+            user_agent=user_agent or 'Browser Agent',
+            device_type="Desktop Browser" if "Mobi" not in (user_agent or "") else "Mobile Device",
+            location="Primary Office",
+            is_active=True
+        )
+    except Exception as e:
+        print(f"[WARN] Failed to record user session: {e}")
 
 
 # Seed initial default permissions & roles if empty
@@ -327,10 +343,22 @@ class SendOTPView(APIView):
 
     def post(self, request):
         data = get_request_data(request)
-        email = data.get('email')
+        email = (data.get('email') or '').strip().lower()
         purpose = data.get('purpose', OTPPurpose.LOGIN)
         if not email:
             return Response({"error": "Email is required to send OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # For login purpose, ensure the user actually exists in the database
+        if purpose == OTPPurpose.LOGIN:
+            user = User.objects.filter(email__iexact=email).first()
+            if not user:
+                return Response({
+                    "error": f"No account found registered with email '{email}'. Please check your email address or sign up first."
+                }, status=status.HTTP_404_NOT_FOUND)
+            if user.status == UserStatus.SUSPENDED:
+                return Response({
+                    "error": "This account is suspended. Please contact your administrator."
+                }, status=status.HTTP_403_FORBIDDEN)
 
         otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(email, purpose)
         return Response({
@@ -348,11 +376,14 @@ class VerifyOTPView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
 
-    def post(self, request):
-        data = get_request_data(request)
+    def post(self, request, data=None):
+        if data is None:
+            raw_data = get_request_data(request)
+            data = dict(raw_data) if isinstance(raw_data, dict) else {}
+
         temp_token = data.get('temp_token')
         otp_code = data.get('otp_code') or data.get('otp')
-        email = data.get('email')
+        email = (data.get('email') or '').strip().lower()
         purpose = data.get('purpose')
 
         success, message, otp_obj = OTPService.verify_otp(
@@ -365,14 +396,26 @@ class VerifyOTPView(APIView):
         if not success:
             return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = otp_obj.user or User.objects.filter(email__iexact=otp_obj.email).first()
+        user = otp_obj.user if otp_obj and otp_obj.user else None
+        if not user and otp_obj and otp_obj.email:
+            user = User.objects.filter(email__iexact=otp_obj.email).first()
+        elif not user and email:
+            user = User.objects.filter(email__iexact=email).first()
 
         if user:
+            if user.status == UserStatus.SUSPENDED:
+                return Response({
+                    "error": "This account is suspended. Please contact your administrator."
+                }, status=status.HTTP_403_FORBIDDEN)
+
             user.is_email_verified = True
             if user.status == UserStatus.PENDING_VERIFICATION:
                 user.status = UserStatus.ACTIVE
             user.last_login = timezone.now()
-            user.save(update_fields=['is_email_verified', 'status', 'last_login', 'updated_at'])
+            try:
+                user.save(update_fields=['is_email_verified', 'status', 'last_login', 'updated_at'])
+            except Exception:
+                user.save()
 
             if user.is_mfa_enabled:
                 return Response({
@@ -382,8 +425,8 @@ class VerifyOTPView(APIView):
                 }, status=status.HTTP_200_OK)
 
             tokens = get_tokens_for_user(user)
-            record_user_session(user, request, tokens['jti'])
-            log_activity(user, f"Verified OTP ({otp_obj.purpose})", resource="Authentication", request=request)
+            record_user_session(user, request, tokens.get('jti'))
+            log_activity(user, f"Verified OTP ({otp_obj.purpose if otp_obj else 'AUTH'})", resource="Authentication", request=request)
 
             return Response({
                 "verified": True,
@@ -403,9 +446,10 @@ class VerifySignupOTPView(APIView):
     authentication_classes = []
 
     def post(self, request):
-        data = get_request_data(request)
+        raw_data = get_request_data(request)
+        data = dict(raw_data) if isinstance(raw_data, dict) else {}
         data['purpose'] = OTPPurpose.SIGNUP
-        return VerifyOTPView().post(request)
+        return VerifyOTPView().post(request, data=data)
 
 
 class VerifyLoginOTPView(APIView):
@@ -413,9 +457,10 @@ class VerifyLoginOTPView(APIView):
     authentication_classes = []
 
     def post(self, request):
-        data = get_request_data(request)
+        raw_data = get_request_data(request)
+        data = dict(raw_data) if isinstance(raw_data, dict) else {}
         data['purpose'] = OTPPurpose.LOGIN
-        return VerifyOTPView().post(request)
+        return VerifyOTPView().post(request, data=data)
 
 
 class ResendOTPView(APIView):
