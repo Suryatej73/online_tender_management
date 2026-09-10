@@ -36,7 +36,7 @@ class Module2AuthRbacTests(TestCase):
         )
 
     def test_user_registration(self):
-        """Test registration endpoint with role selection."""
+        """Test registration endpoint with role selection and OTP verification."""
         url = reverse('auth_register')
         payload = {
             'email': 'newvendor@company.com',
@@ -49,11 +49,25 @@ class Module2AuthRbacTests(TestCase):
         }
         response = self.client.post(url, data=payload, content_type='application/json')
         self.assertEqual(response.status_code, 201)
-        self.assertIn('tokens', response.json())
-        self.assertEqual(response.json()['user']['role'], UserRole.VENDOR)
+        res_data = response.json()
+        self.assertTrue(res_data['otp_required'])
+        self.assertEqual(res_data['purpose'], 'SIGNUP')
+        self.assertIn('temp_token', res_data)
+
+        # Verify Signup OTP
+        verify_url = reverse('auth_otp_verify_signup')
+        verify_res = self.client.post(verify_url, data={
+            'temp_token': res_data['temp_token'],
+            'otp_code': '582914'
+        }, content_type='application/json')
+        self.assertEqual(verify_res.status_code, 200)
+        verify_data = verify_res.json()
+        self.assertTrue(verify_data['verified'])
+        self.assertIn('tokens', verify_data)
+        self.assertEqual(verify_data['user']['role'], UserRole.VENDOR)
 
     def test_jwt_login(self):
-        """Test authentication login endpoint and token return."""
+        """Test authentication login credential validation followed by OTP verification."""
         url = reverse('auth_login')
         payload = {
             'email': 'vendor@tenderx.com',
@@ -62,9 +76,21 @@ class Module2AuthRbacTests(TestCase):
         response = self.client.post(url, data=payload, content_type='application/json')
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertFalse(data['mfa_required'])
-        self.assertIn('access', data['tokens'])
-        self.assertEqual(data['user']['role'], UserRole.VENDOR)
+        self.assertTrue(data['otp_required'])
+        self.assertEqual(data['purpose'], 'LOGIN')
+        self.assertIn('temp_token', data)
+
+        # Verify Login OTP to obtain JWT tokens
+        verify_url = reverse('auth_otp_verify_login')
+        verify_res = self.client.post(verify_url, data={
+            'temp_token': data['temp_token'],
+            'otp_code': '582914'
+        }, content_type='application/json')
+        self.assertEqual(verify_res.status_code, 200)
+        verify_data = verify_res.json()
+        self.assertIn('access', verify_data['tokens'])
+        self.assertEqual(verify_data['user']['role'], UserRole.VENDOR)
+
 
     def test_email_verification_flow(self):
         """Test email token creation and verification endpoint."""

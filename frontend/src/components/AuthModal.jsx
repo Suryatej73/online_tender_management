@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
-  const { saveAuth } = useAuth();
+  const { saveAuth, login, register, verifyOtp, resendOtp, googleLogin } = useAuth();
   const [tab, setTab] = useState(initialTab || 'login');
   const [showGooglePicker, setShowGooglePicker] = useState(false);
   const [customGoogleEmail, setCustomGoogleEmail] = useState('');
@@ -26,10 +26,24 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
   const [otpStep, setOtpStep] = useState('send'); // 'send' | 'verify'
   const [otpEmail, setOtpEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
+  const [tempToken, setTempToken] = useState(null);
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [otpPurpose, setOtpPurpose] = useState('LOGIN');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   React.useEffect(() => {
     if (initialTab) setTab(initialTab);
   }, [initialTab, isOpen]);
+
+  React.useEffect(() => {
+    let timer;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const [formData, setFormData] = useState({
     email: '', password: '', password_confirm: '',
@@ -82,18 +96,21 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setError(null);
     setMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/login/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formData.email, password: formData.password })
-      });
-      const data = await readApiResponse(res);
-      if (data.mfa_required) {
+      const data = await login(formData.email, formData.password);
+      if (data.otp_required) {
+        setTempToken(data.temp_token);
+        setMaskedEmail(data.masked_email || formData.email);
+        setOtpPurpose(data.purpose || 'LOGIN');
+        setOtpEmail(formData.email);
+        setOtpStep('verify');
+        setTab('otp');
+        setResendCooldown(60);
+        setMsg(data.message || `Credentials verified. OTP sent to ${data.masked_email || formData.email}`);
+      } else if (data.mfa_required) {
         setMfaUserId(data.user_id);
         setTab('mfa');
         setMsg('Multi-Factor Authentication required. Enter 6-digit TOTP code.');
       } else {
-        saveAuth(data.user, data.tokens);
         setMsg('Login successful!');
         setTimeout(onClose, 800);
       }
@@ -104,18 +121,12 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     }
   };
 
-  const handleGoogleLogin = async (googleEmail) => {
+  const handleGoogleLogin = async (gEmail) => {
     setLoading(true);
     setError(null);
     setMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/google/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: googleEmail, id_token: 'mock_google_oauth_token' })
-      });
-      const data = await readApiResponse(res);
-      saveAuth(data.user, data.tokens);
+      const data = await googleLogin(gEmail);
       setMsg(`Signed in with Google as ${data.user.email}!`);
       setShowGooglePicker(false);
       setTimeout(onClose, 800);
@@ -140,12 +151,15 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
       const res = await fetch(`${API_BASE}/auth/otp/send/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail })
+        body: JSON.stringify({ email: targetEmail, purpose: otpPurpose })
       });
       const data = await readApiResponse(res);
+      if (data.temp_token) setTempToken(data.temp_token);
+      if (data.masked_email) setMaskedEmail(data.masked_email);
       setOtpEmail(targetEmail);
       setOtpStep('verify');
-      setMsg(data.message || `6-digit OTP code dispatched to ${targetEmail} (Demo Code: 582914)`);
+      setResendCooldown(60);
+      setMsg(data.message || `6-digit OTP code dispatched to ${data.masked_email || targetEmail}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -163,15 +177,42 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setError(null);
     setMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/otp/verify/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: otpEmail || formData.email, otp_code: otpCode })
+      const data = await verifyOtp({
+        temp_token: tempToken,
+        otp_code: otpCode,
+        email: otpEmail || formData.email,
+        purpose: otpPurpose
       });
-      const data = await readApiResponse(res);
-      saveAuth(data.user, data.tokens);
-      setMsg('OTP Authentication successful!');
-      setTimeout(onClose, 800);
+      if (data.mfa_required) {
+        setMfaUserId(data.user_id);
+        setTab('mfa');
+        setMsg('Multi-Factor Authentication required.');
+      } else {
+        setMsg('OTP Authentication successful!');
+        setTimeout(onClose, 800);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setLoading(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const data = await resendOtp({
+        temp_token: tempToken,
+        email: otpEmail || formData.email,
+        purpose: otpPurpose
+      });
+      if (data.temp_token) setTempToken(data.temp_token);
+      if (data.masked_email) setMaskedEmail(data.masked_email);
+      setResendCooldown(60);
+      setMsg(data.message || 'A new OTP verification code has been sent to your email.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -206,15 +247,20 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setError(null);
     setMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/register/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      const data = await readApiResponse(res);
-      saveAuth(data.user, data.tokens);
-      setMsg(`Registered as ${data.user.role_display}! Verification email sent.`);
-      setTimeout(onClose, 1200);
+      const data = await register(formData);
+      if (data.otp_required) {
+        setTempToken(data.temp_token);
+        setMaskedEmail(data.masked_email || formData.email);
+        setOtpPurpose(data.purpose || 'SIGNUP');
+        setOtpEmail(formData.email);
+        setOtpStep('verify');
+        setTab('otp');
+        setResendCooldown(60);
+        setMsg(data.message || `Account created! Verification code sent to ${data.masked_email || formData.email}`);
+      } else {
+        setMsg(`Registered as ${data.user.role_display}!`);
+        setTimeout(onClose, 1200);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -228,6 +274,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/auth/password/reset-request/`, {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email })
@@ -399,15 +446,21 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
           </div>
         )}
 
-        {/* 6-digit OTP Login Form */}
-        {tab === 'otp' && (
+        {/* 6-digit OTP Login / Verification Form */}
+        {(tab === 'otp' || tab === 'otp_verify') && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ textAlign: 'center', marginBottom: '0.25rem' }}>
-              <div style={{ display: 'inline-flex', padding: '0.5rem', borderRadius: '50%', background: 'rgba(255, 107, 0, 0.1)', color: '#ff6b00', marginBottom: '0.5rem' }}>
-                <Smartphone size={24} />
+              <div style={{ display: 'inline-flex', padding: '0.5rem', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary-light)', marginBottom: '0.5rem' }}>
+                <ShieldCheck size={28} />
               </div>
-              <h3 style={{ fontSize: '1rem', fontWeight: '750' }}>6-Digit OTP Verification</h3>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>Passwordless instant login via secure 6-digit one-time code</p>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: '800' }}>
+                {otpPurpose === 'SIGNUP' ? 'Verify Signup Account OTP' : 'Security OTP Verification'}
+              </h3>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
+                {otpStep === 'verify'
+                  ? `6-digit verification code sent to ${maskedEmail || otpEmail || formData.email}`
+                  : 'Instant security OTP verification via email'}
+              </p>
             </div>
 
             {otpStep === 'send' ? (
@@ -432,27 +485,41 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
             ) : (
               <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
-                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600' }}>Enter 6-Digit OTP Code</label>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600', textAlign: 'center' }}>Enter 6-Digit OTP Code</label>
                   <input
-                    type="text" maxLength={6} required
-                    value={otpCode} onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="582914" className="code-font"
-                    style={{ width: '100%', padding: '0.85rem', borderRadius: 'var(--radius-md)', background: 'rgba(0,0,0,0.35)', border: '1px solid var(--primary)', color: '#ff6b00', fontSize: '1.5rem', letterSpacing: '0.4em', textAlign: 'center', outline: 'none' }}
+                    type="text" maxLength={6} required autoFocus
+                    value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="• • • • • •" className="code-font"
+                    style={{ width: '100%', padding: '0.85rem', borderRadius: 'var(--radius-md)', background: 'rgba(0,0,0,0.35)', border: '1px solid var(--primary)', color: 'var(--primary-light)', fontSize: '1.6rem', letterSpacing: '0.45em', textAlign: 'center', outline: 'none' }}
                   />
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginTop: '0.4rem', textAlign: 'center' }}>
-                    Demo Master OTP: <strong style={{ color: '#ff6b00' }}>582914</strong>
-                  </span>
                 </div>
                 <motion.button type="submit" disabled={loading} className="btn-action" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} style={{ width: '100%', justifyContent: 'center' }}>
-                  {loading ? 'Verifying OTP...' : 'Verify OTP & Log In'}
+                  {loading ? 'Verifying OTP...' : 'Verify OTP & Access Portal'}
                 </motion.button>
-                <button type="button" onClick={() => setOtpStep('send')} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '0.75rem', cursor: 'pointer', textAlign: 'center' }}>
-                  Change Email or Resend OTP
-                </button>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                  <button type="button" onClick={() => setOtpStep('send')} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
+                    Change Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResendOtp}
+                    disabled={resendCooldown > 0 || loading}
+                    style={{
+                      background: 'none', border: 'none',
+                      color: resendCooldown > 0 ? 'var(--text-faint)' : 'var(--primary-light)',
+                      cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer',
+                      fontWeight: '700'
+                    }}
+                  >
+                    {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP Code'}
+                  </button>
+                </div>
               </form>
             )}
           </div>
         )}
+
 
         {/* MFA Form */}
         {tab === 'mfa' && (

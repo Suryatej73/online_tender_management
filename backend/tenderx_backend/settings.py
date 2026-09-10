@@ -208,3 +208,20 @@ AWS_S3_CUSTOM_ENDPOINT = os.getenv('AWS_S3_CUSTOM_ENDPOINT', '')
 STORAGE_PROVIDER = os.getenv('STORAGE_PROVIDER', 'AUTO')
 DOCUMENT_PRESIGNED_EXPIRATION_SECONDS = int(os.getenv('DOCUMENT_PRESIGNED_EXPIRATION_SECONDS', '900'))  # 15 mins default
 
+# OTP Configuration
+OTP_EXPIRY_MINUTES = int(os.getenv('OTP_EXPIRY_MINUTES', '5'))
+OTP_RESEND_COOLDOWN_SECONDS = int(os.getenv('OTP_RESEND_COOLDOWN_SECONDS', '60'))
+OTP_MAX_VERIFY_ATTEMPTS = int(os.getenv('OTP_MAX_VERIFY_ATTEMPTS', '5'))
+OTP_RATE_LIMIT_WINDOW_MINUTES = int(os.getenv('OTP_RATE_LIMIT_WINDOW_MINUTES', '15'))
+OTP_MAX_REQUESTS_PER_WINDOW = int(os.getenv('OTP_MAX_REQUESTS_PER_WINDOW', '3'))
+
+# Email Configuration
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tenderX Procurement Platform <no-reply@tenderx.gov>')
+
+

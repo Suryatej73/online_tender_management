@@ -7,7 +7,7 @@ from .views import (
     UserVerifyView, UserAdminResetPasswordView, UserActivityView,
     UserDetailSessionsView, RolesView, PermissionsView, RolePermissionsUpdateView,
     OrganizationsView, DepartmentsView, GoogleLoginView, SendOTPView, VerifyOTPView,
-    EvaluatorOversightView
+    VerifySignupOTPView, VerifyLoginOTPView, ResendOTPView, EvaluatorOversightView
 )
 from .admin_views import (
     AdminDashboardView, AdminOrganizationView, AdminOrganizationVerifyView,
@@ -28,7 +28,14 @@ urlpatterns = [
     path('google/', GoogleLoginView.as_view(), name='auth_google'),
     path('otp/send/', SendOTPView.as_view(), name='auth_otp_send'),
     path('otp/verify/', VerifyOTPView.as_view(), name='auth_otp_verify'),
+    path('otp/verify-signup/', VerifySignupOTPView.as_view(), name='auth_otp_verify_signup'),
+    path('otp/verify-login/', VerifyLoginOTPView.as_view(), name='auth_otp_verify_login'),
+    path('otp/resend/', ResendOTPView.as_view(), name='auth_otp_resend'),
+    path('verify-signup-otp/', VerifySignupOTPView.as_view(), name='auth_verify_signup_otp'),
+    path('verify-login-otp/', VerifyLoginOTPView.as_view(), name='auth_verify_login_otp'),
+    path('resend-otp/', ResendOTPView.as_view(), name='auth_resend_otp'),
     path('me/', UserProfileView.as_view(), name='auth_me'),
+
     path('email/verify/', EmailVerifyView.as_view(), name='auth_email_verify'),
     path('password/reset-request/', PasswordResetRequestView.as_view(), name='auth_password_reset_request'),
     path('password/reset-confirm/', PasswordResetConfirmView.as_view(), name='auth_password_reset_confirm'),

@@ -226,6 +226,36 @@ class EmailVerificationToken(models.Model):
         return f"Email token for {self.user.email}"
 
 
+class OTPPurpose(models.TextChoices):
+    SIGNUP = 'SIGNUP', _('Signup Verification')
+    LOGIN = 'LOGIN', _('Login Verification')
+
+
+class EmailOTP(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='email_otps', null=True, blank=True)
+    email = models.EmailField(db_index=True)
+    otp_hash = models.CharField(max_length=128)
+    purpose = models.CharField(max_length=20, choices=OTPPurpose.choices, default=OTPPurpose.LOGIN)
+    temp_token = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
+    attempts_count = models.IntegerField(default=0)
+    max_attempts = models.IntegerField(default=5)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    expires_at = models.DateTimeField()
+    resend_cooldown_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def is_valid(self):
+        return not self.is_used and timezone.now() < self.expires_at and self.attempts_count < self.max_attempts
+
+    def __str__(self):
+        return f"OTP ({self.purpose}) for {self.email} - Valid: {self.is_valid()}"
+
+
+
 class PasswordResetToken(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_tokens')
