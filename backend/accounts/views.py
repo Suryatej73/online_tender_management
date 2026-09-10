@@ -736,6 +736,34 @@ class SessionRevokeView(APIView):
         return Response({"error": "Specify session_id or set revoke_all=true."}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class SessionHeartbeatView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+
+        session = UserSession.objects.filter(user=user, is_active=True).order_by('-last_activity').first()
+        if session:
+            session.last_activity = timezone.now()
+            session.save(update_fields=['last_activity'])
+        else:
+            return Response({
+                "is_active": False,
+                "session_revoked": True,
+                "message": "Session has been revoked or expired."
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        active_count = UserSession.objects.filter(user=user, is_active=True).count()
+        return Response({
+            "is_active": True,
+            "session_id": str(session.id),
+            "last_activity": session.last_activity.isoformat(),
+            "active_sessions_count": active_count
+        }, status=status.HTTP_200_OK)
+
+
 # Module 3 Main User Management API Endpoints
 class UserListCreateView(APIView):
     permission_classes = [permissions.AllowAny] # Checked dynamically or allowed for demo/auth

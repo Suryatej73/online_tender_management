@@ -53,6 +53,40 @@ export const AuthProvider = ({ children }) => {
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
+  useEffect(() => {
+    if (!user) return;
+    const tokenStr = tokens?.access || localStorage.getItem('access_token');
+    if (!tokenStr) return;
+
+    const sendHeartbeat = async () => {
+      try {
+        const currentToken = localStorage.getItem('access_token') || tokens?.access;
+        if (!currentToken) return;
+
+        const res = await fetch(`${API_BASE}/auth/sessions/heartbeat/`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (res.status === 401) {
+          const data = await res.json().catch(() => ({}));
+          if (data.session_revoked) {
+            console.warn('Session revoked by platform administrator. Logging out.');
+            logout();
+          }
+        }
+      } catch (err) {
+        // Ignore network glitches
+      }
+    };
+
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 30000);
+    return () => clearInterval(interval);
+  }, [user, tokens?.access]);
+
   const readApiResponse = async (response) => {
     const contentType = response.headers.get('content-type') || '';
     const body = await response.text();

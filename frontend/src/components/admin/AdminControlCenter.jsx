@@ -22,6 +22,7 @@ export default function AdminControlCenter() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [systemSettings, setSystemSettings] = useState([]);
   const [usersList, setUsersList] = useState([]);
+  const [activeSessions, setActiveSessions] = useState([]);
   const [userSearch, setUserSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -40,6 +41,30 @@ export default function AdminControlCenter() {
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
+
+  const fetchActiveSessions = async () => {
+    try {
+      const res = await fetch('/api/v1/admin/sessions/', { headers });
+      const data = await res.json();
+      setActiveSessions(data.sessions || []);
+    } catch (err) { }
+  };
+
+  const handleRevokeSession = async (sessionId, email) => {
+    if (!window.confirm(`Revoke active session for ${email}? User will be logged out immediately.`)) return;
+    try {
+      const res = await fetch(`/api/v1/admin/sessions/${sessionId}/revoke/`, {
+        method: 'DELETE',
+        headers
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to revoke session.');
+      setSuccessMsg(data.message);
+      fetchActiveSessions();
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const fetchDashboard = async () => {
@@ -186,6 +211,7 @@ export default function AdminControlCenter() {
     fetchOrganizations();
     fetchVendors();
     fetchUsersList();
+    fetchActiveSessions();
     fetchBlacklists();
     fetchCategories();
     fetchTenders();
@@ -378,6 +404,7 @@ export default function AdminControlCenter() {
           { id: 'complaints', label: 'Complaints & Disputes', icon: MessageSquare },
           { id: 'risk', label: 'Risk & Fraud Alerts', icon: AlertTriangle },
           { id: 'audit', label: 'Audit Trail & Security', icon: ShieldCheck },
+          { id: 'sessions', label: 'Active Sessions Monitor', icon: Lock },
           { id: 'settings', label: 'Platform Settings', icon: Settings },
         ].map(t => {
           const Icon = t.icon;
@@ -961,6 +988,89 @@ export default function AdminControlCenter() {
                     <td className="p-3 font-mono text-white/40">{l.ip_address || '127.0.0.1'}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: Active Sessions Monitor */}
+      {activeTab === 'sessions' && (
+        <div className="bg-[#0d1117] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+            <div>
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <Lock className="w-4 h-4 text-orange-400" />
+                <span>Centralized Cross-Device Active Sessions Monitor</span>
+              </h3>
+              <p className="text-xs text-white/50">Real-time JWT session telemetry and remote session termination</p>
+            </div>
+            <button
+              onClick={fetchActiveSessions}
+              className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold flex items-center gap-2 border border-white/10"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-orange-400" />
+              <span>Refresh Telemetry</span>
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-white/5 text-white/60 uppercase font-mono text-[10px]">
+                <tr>
+                  <th className="p-3">User & Organization</th>
+                  <th className="p-3">Role</th>
+                  <th className="p-3">Device & IP</th>
+                  <th className="p-3">Last Heartbeat Activity</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {activeSessions.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="p-8 text-center text-white/40 text-xs">
+                      No active sessions detected.
+                    </td>
+                  </tr>
+                ) : (
+                  activeSessions.map(s => (
+                    <tr key={s.id} className="hover:bg-white/5 transition">
+                      <td className="p-3">
+                        <div className="font-bold text-white">{s.user_full_name}</div>
+                        <div className="text-[11px] text-white/50">{s.user_email}</div>
+                        <div className="text-[10px] text-orange-400 font-mono">{s.organization_name}</div>
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded font-mono font-bold bg-white/10 text-white text-[10px]">
+                          {s.user_role}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono">
+                        <div className="text-white/80">{s.device_type}</div>
+                        <div className="text-[10px] text-white/40">{s.ip_address} · {s.location}</div>
+                      </td>
+                      <td className="p-3 font-mono text-white/60">
+                        {new Date(s.last_activity).toLocaleTimeString()} ({new Date(s.last_activity).toLocaleDateString()})
+                      </td>
+                      <td className="p-3">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          ACTIVE
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => handleRevokeSession(s.id, s.user_email)}
+                          className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Revoke Session</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

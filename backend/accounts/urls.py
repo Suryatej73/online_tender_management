@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     RegisterView, LoginView, MFALoginView, UserProfileView, EmailVerifyView,
     PasswordResetRequestView, PasswordResetConfirmView, MFASetupView,
-    MFAVerifySetupView, UserSessionsView, SessionRevokeView, AdminUserListView,
+    MFAVerifySetupView, UserSessionsView, SessionRevokeView, SessionHeartbeatView, AdminUserListView,
     UserListCreateView, UserDetailView, UserSuspendView, UserActivateView,
     UserVerifyView, UserAdminResetPasswordView, UserActivityView,
     UserDetailSessionsView, RolesView, PermissionsView, RolePermissionsUpdateView,
@@ -17,7 +17,7 @@ from .admin_views import (
     AdminComplaintResolveView, AdminRiskAlertView, AdminAnnouncementView,
     AdminAuditLogView, AdminAuditLogExportView, AdminSystemSettingsView,
     AdminReportsView, AdminUserManagementView, AdminUserRoleUpdateView,
-    AdminUserStatusUpdateView
+    AdminUserStatusUpdateView, AdminActiveSessionsView
 )
 
 urlpatterns = [
@@ -43,6 +43,7 @@ urlpatterns = [
     path('mfa/verify-setup/', MFAVerifySetupView.as_view(), name='auth_mfa_verify_setup'),
     path('sessions/', UserSessionsView.as_view(), name='auth_sessions'),
     path('sessions/revoke/', SessionRevokeView.as_view(), name='auth_session_revoke'),
+    path('sessions/heartbeat/', SessionHeartbeatView.as_view(), name='auth_session_heartbeat'),
 
     # User Management Endpoints (Module 3)
     path('users/', UserListCreateView.as_view(), name='user_list_create'),
@@ -86,5 +87,7 @@ urlpatterns = [
     path('admin/audit-logs/', AdminAuditLogView.as_view(), name='admin_audit_logs'),
     path('admin/audit-logs/export/', AdminAuditLogExportView.as_view(), name='admin_audit_export'),
     path('admin/settings/', AdminSystemSettingsView.as_view(), name='admin_settings'),
+    path('admin/sessions/', AdminActiveSessionsView.as_view(), name='admin_sessions'),
+    path('admin/sessions/<uuid:pk>/revoke/', AdminActiveSessionsView.as_view(), name='admin_session_revoke'),
     path('admin/reports/<str:report_type>/', AdminReportsView.as_view(), name='admin_reports'),
 ]

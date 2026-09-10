@@ -932,3 +932,62 @@ class AdminUserStatusUpdateView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'User account not found.'}, status=404)
 
+
+class AdminActiveSessionsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'role', None) not in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]:
+            return Response({"error": "Forbidden: Requires Super Admin or Org Admin role."}, status=status.HTTP_403_FORBIDDEN)
+
+        sessions = UserSession.objects.filter(is_active=True).select_related('user').order_by('-last_activity')
+        session_list = []
+        for s in sessions:
+            session_list.append({
+                "id": str(s.id),
+                "user_id": str(s.user.id),
+                "user_email": s.user.email,
+                "user_full_name": s.user.get_full_name() or s.user.username,
+                "user_role": s.user.role,
+                "organization_name": s.user.organization_name or "Platform Admin",
+                "ip_address": s.ip_address or "127.0.0.1",
+                "device_type": s.device_type,
+                "user_agent": s.user_agent,
+                "location": s.location,
+                "created_at": s.created_at.isoformat(),
+                "last_activity": s.last_activity.isoformat(),
+                "is_active": s.is_active
+            })
+        return Response({
+            "total_active_sessions": len(session_list),
+            "sessions": session_list
+        }, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk=None):
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'role', None) not in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]:
+            return Response({"error": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+
+        session_id = pk or request.data.get('session_id')
+        if session_id:
+            try:
+                sess = UserSession.objects.get(id=session_id)
+                sess.is_active = False
+                sess.save()
+                log_platform_audit(
+                    user=request.user,
+                    action="REVOKE_SESSION",
+                    entity_type="UserSession",
+                    entity_id=str(session_id),
+                    description=f"Admin revoked active session for {sess.user.email}",
+                    request=request
+                )
+                return Response({"message": f"Active session for {sess.user.email} successfully revoked."}, status=status.HTTP_200_OK)
+            except UserSession.DoesNotExist:
+                return Response({"error": "Active session not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "Missing session ID."}, status=status.HTTP_400_BAD_REQUEST)
+
+
