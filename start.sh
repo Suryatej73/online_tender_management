@@ -9,7 +9,7 @@ echo "=========================================="
 
 # Start Django Backend on port 8000
 echo "Starting Backend on http://localhost:8000 ..."
-cd "$DIR/backend" && USE_SQLITE=True python3 manage.py runserver 0.0.0.0:8000 &
+cd "$DIR/backend" && USE_SQLITE=True python3 manage.py migrate --noinput && USE_SQLITE=True python3 manage.py runserver 0.0.0.0:8000 &
 BACKEND_PID=$!
 
 # Wait 2 seconds for backend to initialize
