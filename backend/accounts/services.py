@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from .models import EmailOTP, OTPPurpose, User
 
 
+
 def mask_email(email: str) -> str:
     """Mask email address for privacy (e.g., u***r@domain.com)."""
     if not email or '@' not in email:
