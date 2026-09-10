@@ -1,10 +1,12 @@
 import secrets
 import string
 import hashlib
+import uuid
 from datetime import timedelta
 from django.utils import timezone
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
+from django.core.exceptions import ValidationError
 from .models import EmailOTP, OTPPurpose, User
 
 
@@ -163,13 +165,16 @@ class OTPService:
         otp_obj = None
 
         if temp_token:
-            try:
-                otp_obj = EmailOTP.objects.get(temp_token=temp_token)
-            except (EmailOTP.DoesNotExist, ValueError, TypeError):
-                pass
+            token_str = str(temp_token).strip()
+            if token_str and token_str.lower() not in ('null', 'undefined', 'none', ''):
+                try:
+                    valid_uuid = uuid.UUID(token_str)
+                    otp_obj = EmailOTP.objects.filter(temp_token=valid_uuid).first()
+                except (ValueError, TypeError, ValidationError, Exception):
+                    otp_obj = None
 
         if not otp_obj and email:
-            query = EmailOTP.objects.filter(email__iexact=email.lower().strip(), is_used=False)
+            query = EmailOTP.objects.filter(email__iexact=str(email).lower().strip(), is_used=False)
             if purpose:
                 query = query.filter(purpose=purpose)
             otp_obj = query.first()
@@ -215,13 +220,16 @@ class OTPService:
         otp_obj = None
 
         if temp_token:
-            try:
-                otp_obj = EmailOTP.objects.get(temp_token=temp_token)
-            except (EmailOTP.DoesNotExist, ValueError, TypeError):
-                pass
+            token_str = str(temp_token).strip()
+            if token_str and token_str.lower() not in ('null', 'undefined', 'none', ''):
+                try:
+                    valid_uuid = uuid.UUID(token_str)
+                    otp_obj = EmailOTP.objects.filter(temp_token=valid_uuid).first()
+                except (ValueError, TypeError, ValidationError, Exception):
+                    otp_obj = None
 
         if not otp_obj and email:
-            query = EmailOTP.objects.filter(email__iexact=email.lower().strip())
+            query = EmailOTP.objects.filter(email__iexact=str(email).lower().strip())
             if purpose:
                 query = query.filter(purpose=purpose)
             otp_obj = query.first()
