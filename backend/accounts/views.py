@@ -46,8 +46,11 @@ except ImportError:
 from .models import (
     UserRole, UserStatus, Organization, Department, Permission,
     RolePermission, UserSession, UserActivity, ActivityStatus,
-    LoginAttempt, EmailVerificationToken, PasswordResetToken
+    LoginAttempt, EmailVerificationToken, PasswordResetToken,
+    EmailOTP, OTPPurpose
 )
+from .services import OTPService, mask_email
+
 from .serializers import (
     UserSerializer, UserCreateUpdateSerializer, RegisterSerializer,
     LoginSerializer, MFALoginSerializer, MFASetupVerifySerializer,
@@ -196,8 +199,6 @@ def seed_default_permissions():
 
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
-    # Public token endpoints must not invoke SessionAuthentication, which
-    # otherwise rejects JSON POST requests that have no CSRF cookie.
     authentication_classes = []
 
     def post(self, request):
@@ -205,22 +206,20 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=data)
         if serializer.is_valid():
             user = serializer.save()
-            
-            verification_token = str(uuid.uuid4())
-            EmailVerificationToken.objects.create(
-                user=user,
-                token=verification_token,
-                expires_at=timezone.now() + datetime.timedelta(hours=24)
-            )
+            user.is_email_verified = False
+            user.status = UserStatus.PENDING_VERIFICATION
+            user.save(update_fields=['is_email_verified', 'status', 'updated_at'])
 
-            tokens = get_tokens_for_user(user)
-            record_user_session(user, request, tokens['jti'])
-            log_activity(user, "User Self-Registration", resource="Authentication", request=request)
+            otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.SIGNUP, user)
+            log_activity(user, "User Registration (Pending OTP Verification)", resource="Authentication", request=request)
 
             return Response({
-                "message": "User registered successfully!",
-                "verification_token": verification_token,
-                "tokens": tokens,
+                "message": f"User registered successfully! OTP verification code sent to {masked_email}. (Demo Code: {otp_code})",
+                "otp_required": True,
+                "purpose": OTPPurpose.SIGNUP,
+                "temp_token": str(otp_obj.temp_token),
+                "masked_email": masked_email,
+                "demo_otp_hint": otp_code,
                 "user": UserSerializer(user).data
             }, status=status.HTTP_201_CREATED)
 
@@ -246,7 +245,7 @@ class LoginView(APIView):
 
         user = authenticate(request, username=email, password=password)
         if not user:
-            try_user = User.objects.filter(email=email).first()
+            try_user = User.objects.filter(email__iexact=email).first()
             if try_user and try_user.check_password(password):
                 user = try_user
 
@@ -260,26 +259,21 @@ class LoginView(APIView):
 
         LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=True)
         user.last_login_ip = ip
-        user.last_login = timezone.now()
-        user.save(update_fields=['last_login_ip', 'last_login'])
+        user.save(update_fields=['last_login_ip'])
 
-        if user.is_mfa_enabled:
-            return Response({
-                "mfa_required": True,
-                "message": "Multi-Factor Authentication required. Enter TOTP code.",
-                "user_id": str(user.id)
-            }, status=status.HTTP_200_OK)
-
-        tokens = get_tokens_for_user(user)
-        record_user_session(user, request, tokens['jti'])
-        log_activity(user, "User Login", resource="Authentication Session", details=f"Logged in from {ip}", request=request)
+        # Credentials validated -> Generate 6-digit OTP & return temp_token (DO NOT issue JWT tokens yet)
+        otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.LOGIN, user)
+        log_activity(user, "User Login Credentials Verified (OTP Sent)", resource="Authentication Session", details=f"Logged in from {ip}", request=request)
 
         return Response({
-            "mfa_required": False,
-            "message": "Login successful!",
-            "tokens": tokens,
-            "user": UserSerializer(user).data
+            "otp_required": True,
+            "purpose": OTPPurpose.LOGIN,
+            "message": f"Credentials verified. Security OTP code sent to {masked_email}. (Demo Code: {otp_code})",
+            "temp_token": str(otp_obj.temp_token),
+            "masked_email": masked_email,
+            "demo_otp_hint": otp_code
         }, status=status.HTTP_200_OK)
+
 
 
 class GoogleLoginView(APIView):
@@ -329,41 +323,68 @@ class GoogleLoginView(APIView):
 
 class SendOTPView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request):
         data = get_request_data(request)
         email = data.get('email')
+        purpose = data.get('purpose', OTPPurpose.LOGIN)
         if not email:
             return Response({"error": "Email is required to send OTP."}, status=status.HTTP_400_BAD_REQUEST)
 
-        otp_code = "582914"
+        otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(email, purpose)
         return Response({
-            "message": f"OTP verification code sent to {email}",
+            "message": f"OTP verification code dispatched to {masked_email}. (Demo Code: {otp_code})",
             "otp_sent": True,
+            "purpose": purpose,
+            "temp_token": str(otp_obj.temp_token),
+            "masked_email": masked_email,
             "demo_otp_hint": otp_code,
-            "expires_in_seconds": 300
+            "resend_cooldown_seconds": getattr(settings, 'OTP_RESEND_COOLDOWN_SECONDS', 60)
         }, status=status.HTTP_200_OK)
 
 
 class VerifyOTPView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request):
         data = get_request_data(request)
+        temp_token = data.get('temp_token')
+        otp_code = data.get('otp_code') or data.get('otp')
         email = data.get('email')
-        otp_code = data.get('otp_code')
+        purpose = data.get('purpose')
 
-        if not email or not otp_code:
-            return Response({"error": "Email and OTP code are required."}, status=status.HTTP_400_BAD_REQUEST)
+        success, message, otp_obj = OTPService.verify_otp(
+            temp_token=temp_token,
+            otp_code=otp_code,
+            purpose=purpose,
+            email=email
+        )
 
-        if str(otp_code).strip() not in ["582914", "123456"]:
-            return Response({"error": "Invalid or expired OTP verification code."}, status=status.HTTP_400_BAD_REQUEST)
+        if not success:
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.filter(email=email).first()
+        user = otp_obj.user or User.objects.filter(email__iexact=otp_obj.email).first()
+
         if user:
             user.is_email_verified = True
-            user.save(update_fields=['is_email_verified', 'updated_at'])
+            if user.status == UserStatus.PENDING_VERIFICATION:
+                user.status = UserStatus.ACTIVE
+            user.last_login = timezone.now()
+            user.save(update_fields=['is_email_verified', 'status', 'last_login', 'updated_at'])
+
+            if user.is_mfa_enabled:
+                return Response({
+                    "mfa_required": True,
+                    "message": "Multi-Factor Authentication required. Enter TOTP code.",
+                    "user_id": str(user.id)
+                }, status=status.HTTP_200_OK)
+
             tokens = get_tokens_for_user(user)
+            record_user_session(user, request, tokens['jti'])
+            log_activity(user, f"Verified OTP ({otp_obj.purpose})", resource="Authentication", request=request)
+
             return Response({
                 "verified": True,
                 "message": "OTP verification successful!",
@@ -375,6 +396,57 @@ class VerifyOTPView(APIView):
             "verified": True,
             "message": "OTP code verified successfully."
         }, status=status.HTTP_200_OK)
+
+
+class VerifySignupOTPView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        data = get_request_data(request)
+        data['purpose'] = OTPPurpose.SIGNUP
+        return VerifyOTPView().post(request)
+
+
+class VerifyLoginOTPView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        data = get_request_data(request)
+        data['purpose'] = OTPPurpose.LOGIN
+        return VerifyOTPView().post(request)
+
+
+class ResendOTPView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        data = get_request_data(request)
+        temp_token = data.get('temp_token')
+        email = data.get('email')
+        purpose = data.get('purpose', OTPPurpose.LOGIN)
+
+        success, message, new_otp_obj, otp_code = OTPService.resend_otp(
+            temp_token=temp_token,
+            email=email,
+            purpose=purpose
+        )
+
+        if not success:
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+
+        masked = mask_email(new_otp_obj.email) if new_otp_obj else ''
+        return Response({
+            "message": f"{message} (Demo Code: {otp_code})",
+            "temp_token": str(new_otp_obj.temp_token) if new_otp_obj else temp_token,
+            "masked_email": masked,
+            "demo_otp_hint": otp_code,
+            "resend_cooldown_seconds": getattr(settings, 'OTP_RESEND_COOLDOWN_SECONDS', 60)
+        }, status=status.HTTP_200_OK)
+
+
 
 
 class EvaluatorOversightView(APIView):
@@ -662,6 +734,34 @@ class SessionRevokeView(APIView):
             return Response({"message": "Session revoked successfully."}, status=status.HTTP_200_OK)
 
         return Response({"error": "Specify session_id or set revoke_all=true."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SessionHeartbeatView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+
+        session = UserSession.objects.filter(user=user, is_active=True).order_by('-last_activity').first()
+        if session:
+            session.last_activity = timezone.now()
+            session.save(update_fields=['last_activity'])
+        else:
+            return Response({
+                "is_active": False,
+                "session_revoked": True,
+                "message": "Session has been revoked or expired."
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        active_count = UserSession.objects.filter(user=user, is_active=True).count()
+        return Response({
+            "is_active": True,
+            "session_id": str(session.id),
+            "last_activity": session.last_activity.isoformat(),
+            "active_sessions_count": active_count
+        }, status=status.HTTP_200_OK)
 
 
 # Module 3 Main User Management API Endpoints

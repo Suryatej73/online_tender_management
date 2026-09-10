@@ -25,7 +25,7 @@ const scrollChild = {
 };
 
 export default function SplitScreenAuth({ onLoginSuccess }) {
-  const { login } = useAuth();
+  const { login, verifyOtp, resendOtp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -33,6 +33,23 @@ export default function SplitScreenAuth({ onLoginSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // OTP Verification States
+  const [otpStep, setOtpStep] = useState(false);
+  const [tempToken, setTempToken] = useState(null);
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  React.useEffect(() => {
+    let timer;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -50,10 +67,18 @@ export default function SplitScreenAuth({ onLoginSuccess }) {
 
     setLoading(true);
     try {
-      const res = await login(email, password);
-      setSuccessMsg('Authentication successful! Redirecting...');
-      if (onLoginSuccess) {
-        setTimeout(() => onLoginSuccess(res), 600);
+      const data = await login(email, password);
+      if (data.otp_required) {
+        setTempToken(data.temp_token);
+        setMaskedEmail(data.masked_email || email);
+        setOtpStep(true);
+        setResendCooldown(60);
+        setSuccessMsg(data.message || `Credentials verified. Enter the 6-digit OTP code sent to ${data.masked_email || email}`);
+      } else {
+        setSuccessMsg('Authentication successful! Redirecting...');
+        if (onLoginSuccess) {
+          setTimeout(() => onLoginSuccess(data), 600);
+        }
       }
     } catch (err) {
       setError(err.message || 'Authentication failed. Please check credentials.');
@@ -61,6 +86,57 @@ export default function SplitScreenAuth({ onLoginSuccess }) {
       setLoading(false);
     }
   };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!otpCode || otpCode.length < 6) {
+      setError('Please enter a valid 6-digit OTP code.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await verifyOtp({
+        temp_token: tempToken,
+        otp_code: otpCode,
+        email: email,
+        purpose: 'LOGIN'
+      });
+      setSuccessMsg('OTP Authentication successful! Redirecting...');
+      if (onLoginSuccess) {
+        setTimeout(() => onLoginSuccess(data), 600);
+      }
+    } catch (err) {
+      setError(err.message || 'OTP verification failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setLoading(true);
+    setError('');
+    try {
+      const data = await resendOtp({
+        temp_token: tempToken,
+        email: email,
+        purpose: 'LOGIN'
+      });
+      if (data.temp_token) setTempToken(data.temp_token);
+      if (data.masked_email) setMaskedEmail(data.masked_email);
+      setResendCooldown(60);
+      setSuccessMsg(data.message || 'A new OTP verification code has been sent to your email.');
+    } catch (err) {
+      setError(err.message || 'Failed to resend OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const trustItems = [
     { icon: Lock, label: 'Secure Auth', sub: 'AES-256 JWT', color: 'var(--accent)' },
@@ -217,103 +293,185 @@ export default function SplitScreenAuth({ onLoginSuccess }) {
             </motion.div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <label className="input-label" htmlFor="auth-email">Official Email Address</label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={16} color="var(--text-faint)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+          {!otpStep ? (
+            <>
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                  <label className="input-label" htmlFor="auth-email">Official Email Address</label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={16} color="var(--text-faint)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      id="auth-email"
+                      type="email"
+                      className="input-control"
+                      style={{ paddingLeft: '2.5rem' }}
+                      placeholder="name@organization.gov"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <label className="input-label" htmlFor="auth-password" style={{ marginBottom: 0 }}>Password</label>
+                    <a href="#forgot" onClick={(e) => { e.preventDefault(); alert('Password reset dispatched.'); }} style={{ fontSize: '0.72rem', color: 'var(--primary-light)', textDecoration: 'none', fontWeight: '600' }}>
+                      Forgot password?
+                    </a>
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={16} color="var(--text-faint)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      id="auth-password"
+                      type={showPassword ? 'text' : 'password'}
+                      className="input-control"
+                      style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}
+                      placeholder="••••••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: '2px' }}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    id="remember-me"
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    style={{ borderRadius: '4px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                  />
+                  <label htmlFor="remember-me" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    Keep me signed in for 30 days
+                  </label>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+                  <motion.button
+                    type="submit"
+                    className="btn-action"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    style={{ width: '100%', padding: '0.85rem', fontSize: '0.9rem' }}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <><Loader2 size={18} className="animate-spin" /> Authenticating...</>
+                    ) : (
+                      <>Sign In & Request OTP <ArrowRight size={18} /></>
+                    )}
+                  </motion.button>
+                </motion.div>
+              </form>
+
+              {/* SSO Divider */}
+              <div style={{ margin: '1.75rem 0', display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-faint)', fontSize: '0.72rem' }}>
+                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+                <span style={{ letterSpacing: '0.05em' }}>OR SSO</span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+              </div>
+
+              <motion.button
+                type="button"
+                className="btn-secondary"
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                style={{ width: '100%', padding: '0.75rem', fontSize: '0.85rem' }}
+                onClick={() => alert('Govt SSO initiated.')}
+              >
+                <KeyRound size={16} /> Continue with Govt SSO
+              </motion.button>
+            </>
+          ) : (
+            <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'inline-flex', padding: '0.65rem', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary-light)', marginBottom: '0.75rem' }}>
+                  <ShieldCheck size={32} />
+                </div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>Enter Verification OTP</h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  We sent a 6-digit code to <strong style={{ color: '#ffffff' }}>{maskedEmail || email}</strong>
+                </p>
+              </div>
+
+              <div>
+                <label className="input-label" style={{ textAlign: 'center', display: 'block' }}>6-Digit Security OTP</label>
                 <input
-                  id="auth-email"
-                  type="email"
-                  className="input-control"
-                  style={{ paddingLeft: '2.5rem' }}
-                  placeholder="name@organization.gov"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
+                  type="text"
+                  maxLength={6}
                   required
+                  autoFocus
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="• • • • • •"
+                  className="code-font"
+                  style={{
+                    width: '100%',
+                    padding: '0.85rem',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(0,0,0,0.35)',
+                    border: '1px solid var(--primary)',
+                    color: 'var(--primary-light)',
+                    fontSize: '1.75rem',
+                    letterSpacing: '0.5em',
+                    textAlign: 'center',
+                    outline: 'none'
+                  }}
                 />
               </div>
-            </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                <label className="input-label" htmlFor="auth-password" style={{ marginBottom: 0 }}>Password</label>
-                <a href="#forgot" onClick={(e) => { e.preventDefault(); alert('Password reset dispatched.'); }} style={{ fontSize: '0.72rem', color: 'var(--primary-light)', textDecoration: 'none', fontWeight: '600' }}>
-                  Forgot password?
-                </a>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <Lock size={16} color="var(--text-faint)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  id="auth-password"
-                  type={showPassword ? 'text' : 'password'}
-                  className="input-control"
-                  style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}
-                  placeholder="••••••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: '2px' }}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input
-                id="remember-me"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                style={{ borderRadius: '4px', cursor: 'pointer', accentColor: 'var(--primary)' }}
-              />
-              <label htmlFor="remember-me" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                Keep me signed in for 30 days
-              </label>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
               <motion.button
                 type="submit"
                 className="btn-action"
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
-                style={{ width: '100%', padding: '0.85rem', fontSize: '0.9rem' }}
+                style={{ width: '100%', padding: '0.85rem', fontSize: '0.9rem', justifyContent: 'center' }}
                 disabled={loading}
               >
                 {loading ? (
-                  <><Loader2 size={18} className="animate-spin" /> Authenticating...</>
+                  <><Loader2 size={18} className="animate-spin" /> Verifying Code...</>
                 ) : (
-                  <>Sign In to Portal <ArrowRight size={18} /></>
+                  <>Verify OTP & Complete Login <ArrowRight size={18} /></>
                 )}
               </motion.button>
-            </motion.div>
-          </form>
 
-          {/* SSO Divider */}
-          <div style={{ margin: '1.75rem 0', display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-faint)', fontSize: '0.72rem' }}>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-            <span style={{ letterSpacing: '0.05em' }}>OR SSO</span>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-          </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => { setOtpStep(false); setOtpCode(''); setError(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: '600' }}
+                >
+                  ← Back to Login
+                </button>
 
-          <motion.button
-            type="button"
-            className="btn-secondary"
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            style={{ width: '100%', padding: '0.75rem', fontSize: '0.85rem' }}
-            onClick={() => alert('Govt SSO initiated.')}
-          >
-            <KeyRound size={16} /> Continue with Govt SSO
-          </motion.button>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={resendCooldown > 0 || loading}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: resendCooldown > 0 ? 'var(--text-faint)' : 'var(--primary-light)',
+                    cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer',
+                    fontWeight: '700'
+                  }}
+                >
+                  {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP Code'}
+                </button>
+              </div>
+            </form>
+          )}
 
           <p style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Need a vendor account?{' '}
@@ -326,3 +484,4 @@ export default function SplitScreenAuth({ onLoginSuccess }) {
     </div>
   );
 }
+

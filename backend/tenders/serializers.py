@@ -50,7 +50,7 @@ class TenderCategorySerializer(serializers.ModelSerializer):
 
 
 class TenderCategoryTreeSerializer(serializers.ModelSerializer):
-    subcategories = serializers.SerializerMethodGetter() if hasattr(serializers, 'SerializerMethodGetter') else None
+    subcategories = serializers.SerializerMethodField(read_only=True) if hasattr(serializers, 'SerializerMethodField') else None
 
     class Meta:
         model = TenderCategory
@@ -109,7 +109,7 @@ class TenderSerializer(serializers.ModelSerializer):
     effective_org_name = serializers.ReadOnlyField(source='effective_organization_name')
     created_by_name = serializers.ReadOnlyField(source='created_by.full_name', default=None)
     documents = TenderDocumentSerializer(many=True, read_only=True)
-    amendment_count = serializers.SerializerMethodField()
+    amendment_count = serializers.SerializerMethodField(read_only=True) if hasattr(serializers, 'SerializerMethodField') else None
 
     class Meta:
         model = Tender

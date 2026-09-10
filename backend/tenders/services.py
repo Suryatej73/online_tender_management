@@ -101,8 +101,10 @@ class TenderLifecycleService:
         # Record Initial Snapshot on Publish
         if target_status == TenderStatus.PUBLISHED and not TenderVersion.objects.filter(tender=tender, version_number=1).exists():
             from .serializers import TenderSerializer
+            import json
             try:
-                snapshot_data = TenderSerializer(tender).data
+                raw_data = TenderSerializer(tender).data
+                snapshot_data = json.loads(json.dumps(raw_data, default=str))
             except Exception:
                 snapshot_data = {
                     "tender_number": tender.tender_number,
@@ -117,5 +119,6 @@ class TenderLifecycleService:
                 changed_by=user if user and getattr(user, 'is_authenticated', False) else None,
                 change_type="PUBLISHED"
             )
+
 
         return tender

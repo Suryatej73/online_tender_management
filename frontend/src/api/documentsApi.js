@@ -1,7 +1,38 @@
 const BASE_URL = '/api/v1';
 
+async function handleResponse(response) {
+  if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('tenderx_tokens');
+    }
+    let errorMsg = 'API Request failed';
+    try {
+      const errorData = await response.json();
+      if (typeof errorData === 'object' && errorData !== null) {
+        errorMsg = errorData.error || errorData.detail || errorData.message || Object.entries(errorData).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('; ');
+      } else {
+        errorMsg = String(errorData);
+      }
+    } catch (e) {
+      errorMsg = `HTTP Error ${response.status}: ${response.statusText}`;
+    }
+    throw new Error(errorMsg);
+  }
+  return response.json();
+}
+
 function getAuthHeaders(isJson = true) {
-  const token = localStorage.getItem('access_token');
+  let token = localStorage.getItem('access_token');
+  if (!token) {
+    const tenderxTokens = localStorage.getItem('tenderx_tokens');
+    if (tenderxTokens) {
+      try {
+        const parsed = JSON.parse(tenderxTokens);
+        token = parsed.access || parsed.token;
+      } catch (e) {}
+    }
+  }
   const headers = {};
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -18,7 +49,7 @@ export const documentsApi = {
     const res = await fetch(`${BASE_URL}/documents/types/`, {
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Document List with filtering & search
@@ -32,7 +63,7 @@ export const documentsApi = {
     const res = await fetch(`${BASE_URL}/documents/?${query.toString()}`, {
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Document Detail
@@ -40,7 +71,7 @@ export const documentsApi = {
     const res = await fetch(`${BASE_URL}/documents/${id}/`, {
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Secure Document Viewer Data
@@ -48,7 +79,7 @@ export const documentsApi = {
     const res = await fetch(`${BASE_URL}/documents/${id}/viewer/`, {
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Presigned Download URL
@@ -56,7 +87,7 @@ export const documentsApi = {
     const res = await fetch(`${BASE_URL}/documents/${id}/download/`, {
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Single / Presigned Upload Workflow
@@ -66,7 +97,7 @@ export const documentsApi = {
       headers: getAuthHeaders(true),
       body: JSON.stringify(data),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   async completeUpload(payload) {
@@ -87,7 +118,7 @@ export const documentsApi = {
       headers,
       body,
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Upload New Version
@@ -101,7 +132,7 @@ export const documentsApi = {
       headers,
       body: formData,
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Version History
@@ -109,7 +140,7 @@ export const documentsApi = {
     const res = await fetch(`${BASE_URL}/documents/${id}/versions/`, {
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Verification
@@ -119,7 +150,7 @@ export const documentsApi = {
       headers: getAuthHeaders(true),
       body: JSON.stringify({ status, reason }),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Archive / Restore
@@ -128,7 +159,7 @@ export const documentsApi = {
       method: 'POST',
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   async restoreDocument(id) {
@@ -136,7 +167,7 @@ export const documentsApi = {
       method: 'POST',
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Delete
@@ -145,7 +176,7 @@ export const documentsApi = {
       method: 'DELETE',
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Expiring Documents
@@ -153,7 +184,7 @@ export const documentsApi = {
     const res = await fetch(`${BASE_URL}/documents/expiring/?days=${days}`, {
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Templates
@@ -161,7 +192,7 @@ export const documentsApi = {
     const res = await fetch(`${BASE_URL}/documents/templates/`, {
       headers: getAuthHeaders(true),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   async createTemplate(data) {
@@ -170,7 +201,7 @@ export const documentsApi = {
       headers: getAuthHeaders(true),
       body: JSON.stringify(data),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   async generateFromTemplate(id, data) {
@@ -179,12 +210,12 @@ export const documentsApi = {
       headers: getAuthHeaders(true),
       body: JSON.stringify(data),
     });
-    return res.json();
+    return handleResponse(res);
   },
 
   // Storage Health Check
   async checkStorageHealth() {
     const res = await fetch(`${BASE_URL}/documents/health/storage/`);
-    return res.json();
+    return handleResponse(res);
   }
 };
