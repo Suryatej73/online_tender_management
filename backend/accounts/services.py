@@ -148,7 +148,7 @@ class OTPService:
             # Fallback for dev mode console backend or offline network
             print(f"[OTP DEV FALLBACK] Sent OTP to {email}: {otp_code} (Error sending email: {e})")
 
-        return otp_obj, masked
+        return otp_obj, masked, otp_code
 
     @classmethod
     def verify_otp(cls, temp_token: str = None, otp_code: str = None, purpose: str = None, email: str = None):
@@ -194,7 +194,6 @@ class OTPService:
         is_hash_valid = cls.verify_hash(otp_code, otp_obj.otp_hash)
         is_dev_override = otp_code in ['123456', '582914']
 
-
         if not (is_hash_valid or is_dev_override):
             remaining = otp_obj.max_attempts - otp_obj.attempts_count
             if remaining <= 0:
@@ -211,7 +210,7 @@ class OTPService:
     def resend_otp(cls, temp_token: str = None, email: str = None, purpose: str = None):
         """
         Resend a new OTP with cooldown enforcement.
-        Returns: (success: bool, message: str, new_otp_obj: EmailOTP or None)
+        Returns: (success: bool, message: str, new_otp_obj: EmailOTP or None, otp_code: str)
         """
         otp_obj = None
 
@@ -230,21 +229,22 @@ class OTPService:
         if not otp_obj:
             if email:
                 # Create brand new session if email provided
-                new_otp, masked = cls.create_and_send_otp(email, purpose or OTPPurpose.LOGIN)
-                return True, f"OTP dispatched to {masked}", new_otp
-            return False, "Session expired or invalid. Please start again.", None
+                new_otp, masked, otp_code = cls.create_and_send_otp(email, purpose or OTPPurpose.LOGIN)
+                return True, f"OTP dispatched to {masked}", new_otp, otp_code
+            return False, "Session expired or invalid. Please start again.", None, None
 
         # Check cooldown
         now = timezone.now()
         if otp_obj.resend_cooldown_until and now < otp_obj.resend_cooldown_until:
             seconds_remaining = int((otp_obj.resend_cooldown_until - now).total_seconds())
-            return False, f"Please wait {seconds_remaining} seconds before requesting a new OTP code.", None
+            return False, f"Please wait {seconds_remaining} seconds before requesting a new OTP code.", None, None
 
         # Send new OTP
-        new_otp_obj, masked = cls.create_and_send_otp(
+        new_otp_obj, masked, otp_code = cls.create_and_send_otp(
             email=otp_obj.email,
             purpose=otp_obj.purpose,
             user=otp_obj.user
         )
 
-        return True, f"A new OTP code has been sent to {masked}", new_otp_obj
+        return True, f"A new OTP code has been sent to {masked}", new_otp_obj, otp_code
+

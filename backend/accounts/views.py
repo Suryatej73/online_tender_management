@@ -210,15 +210,16 @@ class RegisterView(APIView):
             user.status = UserStatus.PENDING_VERIFICATION
             user.save(update_fields=['is_email_verified', 'status', 'updated_at'])
 
-            otp_obj, masked_email = OTPService.create_and_send_otp(user.email, OTPPurpose.SIGNUP, user)
+            otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.SIGNUP, user)
             log_activity(user, "User Registration (Pending OTP Verification)", resource="Authentication", request=request)
 
             return Response({
-                "message": f"User registered successfully! OTP verification code sent to {masked_email}.",
+                "message": f"User registered successfully! OTP verification code sent to {masked_email}. (Demo Code: {otp_code})",
                 "otp_required": True,
                 "purpose": OTPPurpose.SIGNUP,
                 "temp_token": str(otp_obj.temp_token),
                 "masked_email": masked_email,
+                "demo_otp_hint": otp_code,
                 "user": UserSerializer(user).data
             }, status=status.HTTP_201_CREATED)
 
@@ -261,16 +262,18 @@ class LoginView(APIView):
         user.save(update_fields=['last_login_ip'])
 
         # Credentials validated -> Generate 6-digit OTP & return temp_token (DO NOT issue JWT tokens yet)
-        otp_obj, masked_email = OTPService.create_and_send_otp(user.email, OTPPurpose.LOGIN, user)
+        otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.LOGIN, user)
         log_activity(user, "User Login Credentials Verified (OTP Sent)", resource="Authentication Session", details=f"Logged in from {ip}", request=request)
 
         return Response({
             "otp_required": True,
             "purpose": OTPPurpose.LOGIN,
-            "message": f"Credentials verified. Security OTP code sent to {masked_email}.",
+            "message": f"Credentials verified. Security OTP code sent to {masked_email}. (Demo Code: {otp_code})",
             "temp_token": str(otp_obj.temp_token),
-            "masked_email": masked_email
+            "masked_email": masked_email,
+            "demo_otp_hint": otp_code
         }, status=status.HTTP_200_OK)
+
 
 
 class GoogleLoginView(APIView):
@@ -329,13 +332,14 @@ class SendOTPView(APIView):
         if not email:
             return Response({"error": "Email is required to send OTP."}, status=status.HTTP_400_BAD_REQUEST)
 
-        otp_obj, masked_email = OTPService.create_and_send_otp(email, purpose)
+        otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(email, purpose)
         return Response({
-            "message": f"OTP verification code dispatched to {masked_email}",
+            "message": f"OTP verification code dispatched to {masked_email}. (Demo Code: {otp_code})",
             "otp_sent": True,
             "purpose": purpose,
             "temp_token": str(otp_obj.temp_token),
             "masked_email": masked_email,
+            "demo_otp_hint": otp_code,
             "resend_cooldown_seconds": getattr(settings, 'OTP_RESEND_COOLDOWN_SECONDS', 60)
         }, status=status.HTTP_200_OK)
 
@@ -424,7 +428,7 @@ class ResendOTPView(APIView):
         email = data.get('email')
         purpose = data.get('purpose', OTPPurpose.LOGIN)
 
-        success, message, new_otp_obj = OTPService.resend_otp(
+        success, message, new_otp_obj, otp_code = OTPService.resend_otp(
             temp_token=temp_token,
             email=email,
             purpose=purpose
@@ -435,11 +439,13 @@ class ResendOTPView(APIView):
 
         masked = mask_email(new_otp_obj.email) if new_otp_obj else ''
         return Response({
-            "message": message,
+            "message": f"{message} (Demo Code: {otp_code})",
             "temp_token": str(new_otp_obj.temp_token) if new_otp_obj else temp_token,
             "masked_email": masked,
+            "demo_otp_hint": otp_code,
             "resend_cooldown_seconds": getattr(settings, 'OTP_RESEND_COOLDOWN_SECONDS', 60)
         }, status=status.HTTP_200_OK)
+
 
 
 
