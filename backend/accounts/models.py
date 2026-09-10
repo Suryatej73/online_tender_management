@@ -107,7 +107,7 @@ class User(AbstractUser):
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     position_title = models.CharField(max_length=150, blank=True, null=True)
     avatar_url = models.URLField(max_length=500, blank=True, null=True)
-    
+
     is_email_verified = models.BooleanField(default=False)
     is_mfa_enabled = models.BooleanField(default=False)
     mfa_secret = models.CharField(max_length=64, blank=True, null=True)
@@ -209,6 +209,48 @@ class LoginAttempt(models.Model):
 
     def __str__(self):
         return f"LoginAttempt: {self.email} ({'Success' if self.was_successful else 'Failed'}) at {self.timestamp}"
+
+
+class OTPPurpose(models.TextChoices):
+    SIGNUP = 'SIGNUP', _('Signup Verification')
+    LOGIN = 'LOGIN', _('Login Verification')
+
+
+class EmailOTP(models.Model):
+    """
+    Secure email OTP model for signup and login verification.
+    OTPs are stored as hashes (never plaintext).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='email_otps', null=True, blank=True)
+    email = models.EmailField(db_index=True)
+    otp_hash = models.CharField(max_length=128)
+    purpose = models.CharField(max_length=20, choices=OTPPurpose.choices, db_index=True)
+    expires_at = models.DateTimeField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+    attempt_count = models.PositiveIntegerField(default=0)
+    is_used = models.BooleanField(default=False)
+    request_ip = models.GenericIPAddressField(null=True, blank=True)
+    request_user_agent = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email', 'purpose', 'is_used', 'expires_at']),
+            models.Index(fields=['user', 'purpose', 'is_used']),
+        ]
+
+    def __str__(self):
+        return f"OTP for {self.email} ({self.get_purpose_display()})"
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_valid(self):
+        return not self.is_used and not self.is_expired
 
 
 class EmailVerificationToken(models.Model):
@@ -379,5 +421,3 @@ class PlatformAuditLog(models.Model):
 
     def __str__(self):
         return f"[{self.action}] {self.entity_type}:{self.entity_id} by {self.user_email or 'System'} at {self.timestamp}"
-
-
