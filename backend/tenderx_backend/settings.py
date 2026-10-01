@@ -9,7 +9,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 try:
     from dotenv import load_dotenv
-    load_dotenv(BASE_DIR / ".env")
+    # Load .env from project root or backend directory
+    load_dotenv(BASE_DIR.parent / '.env')
+    load_dotenv(BASE_DIR / '.env')
+    load_dotenv()
 except ImportError:
     pass
 

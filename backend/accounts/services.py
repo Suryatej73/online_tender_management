@@ -81,6 +81,8 @@ class OTPService:
             resend_cooldown_until=cooldown_until
         )
 
+
+
         # Send Email
         user_name = user.full_name if user and hasattr(user, 'full_name') and user.full_name else email.split('@')[0]
 
