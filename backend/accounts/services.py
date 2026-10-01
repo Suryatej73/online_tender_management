@@ -56,37 +56,12 @@ class OTPService:
         cooldown_seconds = getattr(settings, 'OTP_RESEND_COOLDOWN_SECONDS', 60)
         max_attempts = getattr(settings, 'OTP_MAX_VERIFY_ATTEMPTS', 5)
 
-        def _repair_schema_if_needed(err):
-            if 'temp_token' in str(err) or 'has no column' in str(err):
-                from django.db import connection
-                with connection.cursor() as cursor:
-                    columns = [col.name for col in connection.introspection.get_table_description(cursor, 'accounts_emailotp')]
-                    if 'temp_token' not in columns:
-                        cursor.execute("ALTER TABLE accounts_emailotp ADD COLUMN temp_token VARCHAR(36);")
-                    if 'resend_cooldown_until' not in columns:
-                        cursor.execute("ALTER TABLE accounts_emailotp ADD COLUMN resend_cooldown_until DATETIME;")
-                    if 'attempts_count' not in columns:
-                        cursor.execute("ALTER TABLE accounts_emailotp ADD COLUMN attempts_count INTEGER DEFAULT 0;")
-                    if 'max_attempts' not in columns:
-                        cursor.execute("ALTER TABLE accounts_emailotp ADD COLUMN max_attempts INTEGER DEFAULT 5;")
-
         # Invalidate any active, unused OTPs for this email and purpose
-        try:
-            EmailOTP.objects.filter(
-                email__iexact=email,
-                purpose=purpose,
-                is_used=False
-            ).update(is_used=True)
-        except Exception as err:
-            _repair_schema_if_needed(err)
-            try:
-                EmailOTP.objects.filter(
-                    email__iexact=email,
-                    purpose=purpose,
-                    is_used=False
-                ).update(is_used=True)
-            except Exception:
-                pass
+        EmailOTP.objects.filter(
+            email__iexact=email,
+            purpose=purpose,
+            is_used=False
+        ).update(is_used=True)
 
         otp_code = cls.generate_otp_code()
         otp_hash = cls.hash_otp(otp_code)
@@ -96,27 +71,15 @@ class OTPService:
         if not user:
             user = User.objects.filter(email__iexact=email).first()
 
-        try:
-            otp_obj = EmailOTP.objects.create(
-                user=user,
-                email=email.lower().strip(),
-                otp_hash=otp_hash,
-                purpose=purpose,
-                max_attempts=max_attempts,
-                expires_at=expires_at,
-                resend_cooldown_until=cooldown_until
-            )
-        except Exception as err:
-            _repair_schema_if_needed(err)
-            otp_obj = EmailOTP.objects.create(
-                user=user,
-                email=email.lower().strip(),
-                otp_hash=otp_hash,
-                purpose=purpose,
-                max_attempts=max_attempts,
-                expires_at=expires_at,
-                resend_cooldown_until=cooldown_until
-            )
+        otp_obj = EmailOTP.objects.create(
+            user=user,
+            email=email.lower().strip(),
+            otp_hash=otp_hash,
+            purpose=purpose,
+            max_attempts=max_attempts,
+            expires_at=expires_at,
+            resend_cooldown_until=cooldown_until
+        )
 
 
 
