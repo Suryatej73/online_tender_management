@@ -107,7 +107,7 @@ class User(AbstractUser):
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     position_title = models.CharField(max_length=150, blank=True, null=True)
     avatar_url = models.URLField(max_length=500, blank=True, null=True)
-    
+
     is_email_verified = models.BooleanField(default=False)
     is_mfa_enabled = models.BooleanField(default=False)
     mfa_secret = models.CharField(max_length=64, blank=True, null=True)
@@ -409,5 +409,3 @@ class PlatformAuditLog(models.Model):
 
     def __str__(self):
         return f"[{self.action}] {self.entity_type}:{self.entity_id} by {self.user_email or 'System'} at {self.timestamp}"
-
-
