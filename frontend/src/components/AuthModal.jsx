@@ -417,7 +417,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
                 </div>
               </div>
               <motion.button type="submit" disabled={loading} className="btn-action" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} style={{ width: '100%', justifyContent: 'center', marginTop: '0.25rem' }}>
-                {loading ? 'Authenticating...' : 'Sign In with JWT'}
+                {loading ? 'Authenticating...' : 'Sign In with Email & Password'}
               </motion.button>
             </form>
 
@@ -448,6 +448,17 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
               </svg>
               <span>Sign in with Google</span>
             </motion.button>
+
+            <div style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: '0.82rem', color: 'var(--text-dim)' }}>
+              Don't have an account?{' '}
+              <button
+                type="button"
+                onClick={() => { setTab('register'); setError(null); setMsg(null); }}
+                style={{ background: 'none', border: 'none', color: 'var(--primary-light)', fontWeight: '700', cursor: 'pointer', underline: 'always' }}
+              >
+                Sign up
+              </button>
+            </div>
           </div>
         )}
 
@@ -458,13 +469,14 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
               <div style={{ display: 'inline-flex', padding: '0.5rem', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary-light)', marginBottom: '0.5rem' }}>
                 <ShieldCheck size={28} />
               </div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: '800' }}>
-                {otpPurpose === 'SIGNUP' ? 'Verify Signup Account OTP' : 'Security OTP Verification'}
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '800' }}>
+                Verify Your Email
               </h3>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
-                {otpStep === 'verify'
-                  ? `6-digit verification code sent to ${maskedEmail || otpEmail || formData.email}`
-                  : 'Instant security OTP verification via email'}
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: '0.2rem' }}>
+                We sent a 6-digit verification code to:
+              </p>
+              <p style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--primary-light)', marginTop: '0.1rem' }}>
+                {maskedEmail || otpEmail || formData.email}
               </p>
             </div>
 
@@ -490,7 +502,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
             ) : (
               <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
-                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600', textAlign: 'center' }}>Enter 6-Digit OTP Code</label>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', fontWeight: '600', textAlign: 'center' }}>Enter 6-Digit Verification Code</label>
                   <input
                     type="text" maxLength={6} required autoFocus
                     value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
@@ -499,13 +511,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
                   />
                 </div>
                 <motion.button type="submit" disabled={loading} className="btn-action" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} style={{ width: '100%', justifyContent: 'center' }}>
-                  {loading ? 'Verifying OTP...' : 'Verify OTP & Access Portal'}
+                  {loading ? 'Verifying OTP...' : 'Verify & Continue'}
                 </motion.button>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', marginTop: '0.25rem' }}>
-                  <button type="button" onClick={() => setOtpStep('send')} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
-                    Change Email
-                  </button>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', marginTop: '0.25rem' }}>
+                  <span style={{ color: 'var(--text-dim)' }}>Didn't receive the code?</span>
                   <button
                     type="button"
                     onClick={handleResendOtp}
@@ -517,7 +527,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
                       fontWeight: '700'
                     }}
                   >
-                    {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP Code'}
+                    {resendCooldown > 0 ? `Resend available in ${resendCooldown} seconds` : 'Resend OTP'}
                   </button>
                 </div>
               </form>
@@ -615,8 +625,20 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
             >
               <span>Or Register via Google Account</span>
             </motion.button>
+
+            <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-dim)' }}>
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => { setTab('login'); setError(null); setMsg(null); }}
+                style={{ background: 'none', border: 'none', color: 'var(--primary-light)', fontWeight: '700', cursor: 'pointer' }}
+              >
+                Login
+              </button>
+            </div>
           </form>
         )}
+
 
         {/* Password Reset */}
         {tab === 'reset_password' && (

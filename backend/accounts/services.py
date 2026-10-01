@@ -82,8 +82,41 @@ class OTPService:
         )
 
         # Send Email
-        purpose_label = "Signup Account Verification" if purpose == OTPPurpose.SIGNUP else "Login Verification"
-        subject = f"[{otp_code}] Your tenderX {purpose_label} Code"
+        user_name = user.full_name if user and hasattr(user, 'full_name') and user.full_name else email.split('@')[0]
+
+        if purpose == OTPPurpose.SIGNUP:
+            subject = "Verify your TenderX account"
+            text_content = f"""Hello {user_name},
+
+Welcome to TenderX.
+
+Please use the following verification code to verify your email address:
+
+{otp_code}
+
+This code will expire in {expiry_minutes} minutes.
+
+If you did not create this account, you can safely ignore this email.
+
+Regards,
+TenderX Team"""
+        else:
+            subject = "Your TenderX Login Verification Code"
+            text_content = f"""Hello {user_name},
+
+A login attempt was made for your TenderX account.
+
+Your verification code is:
+
+{otp_code}
+
+This code will expire in {expiry_minutes} minutes.
+
+If you did not attempt to log in, please secure your account.
+
+Regards,
+TenderX Team"""
+
         masked = mask_email(email)
 
         html_content = f"""
@@ -108,40 +141,31 @@ class OTPService:
         <body>
           <div class="container">
             <div class="header">
-              <div class="logo">tender<span>X</span></div>
-              <div class="title">Security Verification Code</div>
+              <div class="logo">Tender<span>X</span></div>
+              <div class="title">{subject}</div>
             </div>
-            <p class="info">Hello,</p>
-            <p class="info">Your One-Time Password (OTP) for <strong>{purpose_label}</strong> on the tenderX Procurement Platform is:</p>
+            <p class="info">Hello <strong>{user_name}</strong>,</p>
+            <p class="info">Your One-Time Password (OTP) code is:</p>
             
             <div class="otp-box">
               <div class="otp-code">{otp_code}</div>
             </div>
 
-            <p class="info">This verification code will expire in <strong>{expiry_minutes} minutes</strong>. Please do not close your verification window.</p>
+            <p class="info">This code will expire in <strong>{expiry_minutes} minutes</strong>.</p>
             
             <div class="warning">
-              <strong>Security Notice:</strong> Never share this OTP with anyone. tenderX support staff will never ask for your verification code.
+              <strong>Security Notice:</strong> Never share this OTP with anyone. TenderX team will never ask for your verification code.
             </div>
 
             <div class="footer">
-              National Online Tender Management System &bull; ISO 27001 Certified Infrastructure
+              TenderX Online Tender Management System &bull; ISO 27001 Certified
             </div>
           </div>
         </body>
         </html>
         """
 
-        text_content = f"""
-        tenderX Security Verification Code
-        ----------------------------------
-        Your OTP for {purpose_label} is: {otp_code}
-
-        This code expires in {expiry_minutes} minutes.
-        Do not share this code with anyone.
-        """
-
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'tenderX <no-reply@tenderx.gov>')
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'TenderX <tenderx69@gmail.com>')
         
         try:
             msg = EmailMultiAlternatives(subject, text_content, from_email, [email])
@@ -152,6 +176,7 @@ class OTPService:
             print(f"[OTP DEV FALLBACK] Sent OTP to {email}: {otp_code} (Error sending email: {e})")
 
         return otp_obj, masked, otp_code
+
 
     @classmethod
     def verify_otp(cls, temp_token: str = None, otp_code: str = None, purpose: str = None, email: str = None):
