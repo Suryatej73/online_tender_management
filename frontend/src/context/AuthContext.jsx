@@ -92,9 +92,14 @@ export const AuthProvider = ({ children }) => {
     const body = await response.text();
 
     if (!contentType.includes('application/json')) {
-      const serviceHint = response.status === 0 || response.status === 502 || response.status === 503
-        ? 'Make sure the Django backend is running on http://127.0.0.1:8000.'
-        : 'Check that the request is being sent to the Django backend, not a static file server.';
+      let serviceHint = 'Please ensure the Django backend is running and healthy.';
+      if (response.status === 0 || response.status === 502 || response.status === 503) {
+        serviceHint = 'Make sure the Django backend is running on http://127.0.0.1:8000.';
+      } else if (response.status === 403) {
+        serviceHint = 'Request was rejected by server security policies (HTTP 403).';
+      } else if (response.status === 404) {
+        serviceHint = 'The authentication endpoint was not found on the backend server.';
+      }
       throw new Error(`Authentication service returned HTTP ${response.status} instead of JSON. ${serviceHint}`);
     }
 

@@ -28,3 +28,18 @@ class SafeJWTAuthentication(JWTAuthentication):
             return user, validated_token
         except Exception:
             return None
+
+
+try:
+    from rest_framework.authentication import SessionAuthentication
+
+    class CsrfExemptSessionAuthentication(SessionAuthentication):
+        """
+        SessionAuthentication without CSRF enforcement for REST API callers.
+        """
+        def enforce_csrf(self, request):
+            return  # To not perform CSRF check
+except ImportError:
+    class CsrfExemptSessionAuthentication:
+        pass
+
