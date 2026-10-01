@@ -7,9 +7,13 @@ from pathlib import Path
 
 try:
     from dotenv import load_dotenv
+    # Load .env from project root or backend directory
+    load_dotenv(BASE_DIR.parent / '.env')
+    load_dotenv(BASE_DIR / '.env')
     load_dotenv()
 except ImportError:
     pass
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
