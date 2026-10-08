@@ -127,32 +127,25 @@ POSTGRES_PORT = os.getenv('POSTGRES_PORT', os.getenv('DB_PORT', '5432'))
 
 # A direct ``python manage.py runserver`` command should work without Docker.
 # Docker Compose explicitly sets USE_SQLITE=False and supplies PostgreSQL.
-USE_SQLITE = os.getenv('USE_SQLITE', 'True').lower() == 'true'
+import dj_database_url
 
-if USE_SQLITE:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
-else:
-    try:
-        import psycopg2
-        db_engine = 'django.db.backends.postgresql'
-    except ImportError:
-        db_engine = 'django.db.backends.sqlite3'
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-    DATABASES = {
-        'default': {
-            'ENGINE': db_engine,
-            'NAME': POSTGRES_DB if db_engine == 'django.db.backends.postgresql' else BASE_DIR / 'db.sqlite3',
-            'USER': POSTGRES_USER,
-            'PASSWORD': POSTGRES_PASSWORD,
-            'HOST': POSTGRES_HOST,
-            'PORT': POSTGRES_PORT,
-        }
-    }
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not configured. "
+        "Please add your Supabase PostgreSQL connection string to .env"
+    )
+
+DATABASES = {
+    "default": dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=600,
+        ssl_require=True,
+    )
+}
+
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
