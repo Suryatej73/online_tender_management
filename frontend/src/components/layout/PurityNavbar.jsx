@@ -1,10 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Search, Bell, Settings, User as UserIcon, LogOut,
-  ChevronRight, ExternalLink, Check, Sparkles, AlertTriangle, ShieldCheck
+  ChevronRight, ExternalLink, Check, Sparkles, AlertTriangle, ShieldCheck,
+  Sun, Moon
 } from 'lucide-react';
 
-export default function PurityNavbar({ activeTab, currentUser, onLogout, onExploreClick, onTabChange }) {
+export default function PurityNavbar({
+  activeTab,
+  currentUser,
+  onLogout,
+  onExploreClick,
+  onTabChange,
+  theme = 'dark',
+  onToggleTheme
+}) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(3);
   const [notifications, setNotifications] = useState([
@@ -100,6 +109,28 @@ export default function PurityNavbar({ activeTab, currentUser, onLogout, onExplo
             ⌘K
           </kbd>
         </div>
+
+        {/* Theme Mode Switcher (Dark / Light) */}
+        {onToggleTheme && (
+          <button
+            onClick={onToggleTheme}
+            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            aria-label="Toggle color theme"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs font-semibold text-white/80 hover:text-orange-400 transition shadow-xs"
+          >
+            {theme === 'light' ? (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="hidden lg:inline">Dark Mode</span>
+              </>
+            ) : (
+              <>
+                <Sun className="w-3.5 h-3.5 text-orange-400" />
+                <span className="hidden lg:inline">Light Mode</span>
+              </>
+            )}
+          </button>
+        )}
 
         {/* Explore Mode Switcher */}
         <button

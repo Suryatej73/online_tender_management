@@ -8,7 +8,7 @@ import {
   Menu, ScanLine, Search, ShieldCheck, Sparkles, X, Zap, BrainCircuit,
   Building2, Clock3, BarChart3, Upload, CheckCircle2, Award, Users,
   Layers, ExternalLink, Activity, Eye, Shield, Lock, Cpu, Globe,
-  FileCheck, AlertTriangle
+  FileCheck, AlertTriangle, Sun, Moon
 } from 'lucide-react';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -751,7 +751,7 @@ function Benefits({ onOpenRegister }) {
   );
 }
 
-function Navbar({ onOpenLogin, onOpenRegister }) {
+function Navbar({ onOpenLogin, onOpenRegister, theme = 'dark', onToggleTheme }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -783,6 +783,18 @@ function Navbar({ onOpenLogin, onOpenRegister }) {
       </nav>
 
       <div className="tx-nav-actions">
+        {onToggleTheme && (
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className="tx-theme-toggle"
+            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            aria-label="Toggle color theme"
+          >
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            <span>{theme === 'light' ? 'Dark' : 'Light'}</span>
+          </button>
+        )}
         <button type="button" onClick={onOpenLogin}>Sign In</button>
         <Button onClick={onOpenRegister}>Get Started</Button>
       </div>
@@ -808,6 +820,16 @@ function Navbar({ onOpenLogin, onOpenRegister }) {
           ].map(([label, href]) => (
             <a onClick={() => setOpen(false)} href={href} key={label}>{label}</a>
           ))}
+          {onToggleTheme && (
+            <button
+              type="button"
+              className="tx-theme-toggle"
+              onClick={() => { onToggleTheme(); }}
+            >
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+              <span>{theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}</span>
+            </button>
+          )}
           <button type="button" onClick={() => { setOpen(false); onOpenLogin(); }}>Sign In</button>
           <Button onClick={() => { setOpen(false); onOpenRegister(); }}>Get Started</Button>
         </motion.div>
@@ -850,7 +872,7 @@ function Footer() {
   );
 }
 
-export default function TenderXLanding({ onOpenLogin, onOpenRegister }) {
+export default function TenderXLanding({ onOpenLogin, onOpenRegister, theme = 'dark', onToggleTheme }) {
   const rootRef = useRef(null);
   const reduceMotion = useReducedMotion();
 
@@ -909,7 +931,7 @@ export default function TenderXLanding({ onOpenLogin, onOpenRegister }) {
 
   return (
     <div ref={rootRef} className="tx-landing">
-      <Navbar onOpenLogin={onOpenLogin} onOpenRegister={onOpenRegister} />
+      <Navbar onOpenLogin={onOpenLogin} onOpenRegister={onOpenRegister} theme={theme} onToggleTheme={onToggleTheme} />
       <main>
         <Hero onOpenLogin={onOpenLogin} onOpenRegister={onOpenRegister} />
         <Discovery />

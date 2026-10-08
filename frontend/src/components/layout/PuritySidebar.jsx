@@ -2,10 +2,10 @@ import React from 'react';
 import {
   LayoutDashboard, FileText, Gavel, Building2, FileCheck,
   Award, User, Users, ShieldCheck, LogOut, HelpCircle,
-  Sparkles, ExternalLink, ChevronRight, Server
+  Sparkles, ExternalLink, ChevronRight, Server, Sun, Moon
 } from 'lucide-react';
 
-export default function PuritySidebar({ activeTab, onTabChange, currentUser, onLogout, onExploreClick }) {
+export default function PuritySidebar({ activeTab, onTabChange, currentUser, onLogout, onExploreClick, theme = 'dark', onToggleTheme }) {
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ORG_ADMIN';
 
@@ -29,7 +29,7 @@ export default function PuritySidebar({ activeTab, onTabChange, currentUser, onL
   ];
 
   return (
-    <aside className="w-64 bg-[#07090e] min-h-screen border-r border-white/10 flex flex-col justify-between p-4 shrink-0 shadow-2xl selection:bg-orange-500 selection:text-white">
+    <aside className="tx-sidebar w-64 bg-[#07090e] min-h-screen border-r border-white/10 flex flex-col justify-between p-4 shrink-0 shadow-2xl selection:bg-orange-500 selection:text-white transition-colors duration-200">
       <div>
         {/* Brand Logo matching dark SaaS aesthetic */}
         <div className="flex items-center gap-3 px-3 py-3.5 mb-3">
@@ -113,6 +113,18 @@ export default function PuritySidebar({ activeTab, onTabChange, currentUser, onL
             );
           })}
 
+          {onToggleTheme && (
+            <button
+              onClick={onToggleTheme}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-white/5 transition-all group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-white/5 text-orange-400 group-hover:bg-white/10 flex items-center justify-center transition-all">
+                {theme === 'light' ? <Moon className="w-4 h-4 text-indigo-500" /> : <Sun className="w-4 h-4 text-orange-400" />}
+              </div>
+              <span className="truncate">{theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}</span>
+            </button>
+          )}
+
           <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all mt-2"
@@ -127,7 +139,7 @@ export default function PuritySidebar({ activeTab, onTabChange, currentUser, onL
 
       {/* Bottom Documentation & Help Card */}
       <div className="mt-6">
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-[#131926] to-[#0c101a] border border-orange-500/20 text-white shadow-lg shadow-black/40 relative overflow-hidden">
+        <div className="tx-sidebar-help-card p-4 rounded-2xl bg-gradient-to-br from-[#131926] to-[#0c101a] border border-orange-500/20 text-white shadow-lg shadow-black/40 relative overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mb-2.5 text-orange-400">
             <HelpCircle className="w-4 h-4" />
           </div>

@@ -35,6 +35,27 @@ function TenderXApp() {
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showExplorePage, setShowExplorePage] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('tenderx_theme') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.toggle('light-mode', theme === 'light');
+    try {
+      localStorage.setItem('tenderx_theme', theme);
+    } catch {
+      // ignore storage errors
+    }
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
 
   const [dashboard, setDashboard] = useState({ statistics: {}, recent_tenders: [], bidStats: {} });
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -93,6 +114,8 @@ function TenderXApp() {
         )}
 
         <TenderXLanding
+          theme={theme}
+          onToggleTheme={toggleTheme}
           onOpenLogin={() => {
             setAuthInitialTab('login');
             setAuthModalOpen(true);
@@ -114,29 +137,33 @@ function TenderXApp() {
     );
   }
 
-  // Once authenticated: User enters the TenderX OS Command Center with dark sidebar & theme
+  // Once authenticated: User enters the TenderX OS Command Center with adaptive theme
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex font-sans antialiased selection:bg-orange-500/30 selection:text-orange-200">
+    <div className="tx-dashboard-shell min-h-screen bg-[#07090e] text-slate-100 flex font-sans antialiased selection:bg-orange-500/30 selection:text-orange-200 transition-colors duration-200">
       
-      {/* 1. Left Sidebar matching dark SaaS architecture */}
+      {/* 1. Left Sidebar matching SaaS architecture */}
       <PuritySidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         currentUser={user}
         onLogout={logout}
         onExploreClick={() => setShowExplorePage(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* 2. Main Working Workspace */}
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         
-        {/* Top Navbar with breadcrumbs, command bar, and notifications */}
+        {/* Top Navbar with breadcrumbs, command bar, theme toggle, and notifications */}
         <PurityNavbar
           activeTab={activeTab}
           currentUser={user}
           onLogout={logout}
           onExploreClick={() => setShowExplorePage(true)}
           onTabChange={setActiveTab}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
 
         {/* Scrollable Working Content Area */}
