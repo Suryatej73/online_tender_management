@@ -200,10 +200,17 @@ class TenderListCreateView(APIView):
 
             serializer = TenderCreateUpdateSerializer(data=data)
             if not serializer.is_valid():
+                errors = serializer.errors
+                err_messages = []
+                for field, msgs in errors.items():
+                    msg_text = ', '.join(msgs) if isinstance(msgs, list) else str(msgs)
+                    err_messages.append(f"{field}: {msg_text}" if field != 'non_field_errors' else msg_text)
+                combined_msg = f"Validation failed: {'; '.join(err_messages)}" if err_messages else "Validation failed"
                 return Response({
                     "success": False,
-                    "message": "Validation failed",
-                    "errors": serializer.errors
+                    "message": combined_msg,
+                    "error": combined_msg,
+                    "errors": errors
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             tender_number = generate_tender_number()

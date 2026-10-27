@@ -57,7 +57,14 @@ async function handleResponse(response) {
     try {
       const errorData = await response.json();
       if (typeof errorData === 'object' && errorData !== null) {
-        errorMsg = errorData.error || errorData.detail || errorData.message || Object.entries(errorData).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('; ');
+        if (errorData.errors && typeof errorData.errors === 'object' && Object.keys(errorData.errors).length > 0) {
+          const fieldErrors = Object.entries(errorData.errors)
+            .map(([field, msgs]) => `${field === 'non_field_errors' ? '' : field + ': '}${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join(' | ');
+          errorMsg = errorData.message ? `${errorData.message}` : fieldErrors;
+        } else {
+          errorMsg = errorData.error || errorData.detail || errorData.message || Object.entries(errorData).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('; ');
+        }
       } else {
         errorMsg = String(errorData);
       }

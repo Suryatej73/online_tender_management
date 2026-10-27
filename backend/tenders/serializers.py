@@ -89,6 +89,31 @@ except ImportError:
 
         def is_valid(self, raise_exception=False):
             self._errors = {}
+
+            # Parse datetime strings to timezone-aware datetimes
+            from django.utils.dateparse import parse_datetime
+            for dt_field in ['submission_deadline', 'opening_date', 'start_date', 'publication_date']:
+                val = self._data.get(dt_field)
+                if val is not None and isinstance(val, str):
+                    val_str = val.strip()
+                    if not val_str or val_str.lower() in ('null', 'none', 'undefined'):
+                        self._data[dt_field] = None
+                    else:
+                        parsed = parse_datetime(val_str)
+                        if parsed is not None:
+                            if timezone.is_naive(parsed):
+                                parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+                            self._data[dt_field] = parsed
+
+            # Parse numeric strings
+            for num_field in ['budget', 'estimated_value', 'bid_security_amount']:
+                val = self._data.get(num_field)
+                if val is not None and val != '':
+                    try:
+                        self._data[num_field] = float(val)
+                    except (ValueError, TypeError):
+                        pass
+
             if hasattr(self, 'Meta') and getattr(self.Meta, 'model', None) and getattr(self.Meta.model, '__name__', '') == 'Tender':
                 if not self.partial and ('title' in self._data or self.instance is None):
                     title = (self._data.get('title') or '').strip()
@@ -312,16 +337,48 @@ class TenderCreateUpdateSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
+        from django.utils.dateparse import parse_datetime
+        import datetime
+
         budget = attrs.get('budget')
-        if budget is not None and budget < 0:
-            raise serializers.ValidationError({"budget": "Budget cannot be a negative amount."})
+        if budget is not None and budget != '':
+            try:
+                budget_val = float(budget)
+                if budget_val < 0:
+                    raise serializers.ValidationError({"budget": "Budget cannot be a negative amount."})
+            except (ValueError, TypeError):
+                raise serializers.ValidationError({"budget": "Invalid numeric budget format."})
 
-        submission_deadline = attrs.get('submission_deadline')
-        if submission_deadline and submission_deadline <= timezone.now():
-            raise serializers.ValidationError({"submission_deadline": "Submission deadline must be a future date."})
+        # Parse and validate submission_deadline
+        sub_raw = attrs.get('submission_deadline')
+        sub_dt = None
+        if sub_raw:
+            if isinstance(sub_raw, str):
+                sub_dt = parse_datetime(sub_raw)
+            elif isinstance(sub_raw, (datetime.datetime, datetime.date)):
+                sub_dt = sub_raw
 
-        opening_date = attrs.get('opening_date')
-        if opening_date and submission_deadline and opening_date < submission_deadline:
-            raise serializers.ValidationError({"opening_date": "Opening date must be on or after submission deadline."})
+        if sub_dt:
+            if timezone.is_naive(sub_dt):
+                sub_dt = timezone.make_aware(sub_dt, timezone.get_current_timezone())
+            attrs['submission_deadline'] = sub_dt
+            if sub_dt <= timezone.now():
+                raise serializers.ValidationError({"submission_deadline": "Submission deadline must be a future date."})
+
+        # Parse and validate opening_date
+        open_raw = attrs.get('opening_date')
+        open_dt = None
+        if open_raw:
+            if isinstance(open_raw, str):
+                open_dt = parse_datetime(open_raw)
+            elif isinstance(open_raw, (datetime.datetime, datetime.date)):
+                open_dt = open_raw
+
+        if open_dt:
+            if timezone.is_naive(open_dt):
+                open_dt = timezone.make_aware(open_dt, timezone.get_current_timezone())
+            attrs['opening_date'] = open_dt
+            if sub_dt and open_dt < sub_dt:
+                raise serializers.ValidationError({"opening_date": "Opening date must be on or after submission deadline."})
 
         return attrs
