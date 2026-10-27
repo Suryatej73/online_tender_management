@@ -23,12 +23,20 @@ class ApiCsrfExemptMiddleware(MiddlewareMixin):
         path = getattr(request, 'path_info', getattr(request, 'path', ''))
         if path.startswith('/api/'):
             from django.http import JsonResponse
+            from django.db import DatabaseError
             import logging
             logging.getLogger('tenderx.api').error(f"Unhandled API error on {path}: {str(exception)}", exc_info=True)
-            status_code = 400 if isinstance(exception, (ValueError, KeyError, TypeError)) else 500
+            if isinstance(exception, DatabaseError):
+                status_code = 503
+                message = 'The data service is temporarily unavailable. Please try again shortly.'
+            elif isinstance(exception, (ValueError, KeyError, TypeError)):
+                status_code = 400
+                message = 'The request contains invalid data.'
+            else:
+                status_code = 500
+                message = 'An unexpected server error occurred.'
             return JsonResponse({
                 "success": False,
-                "message": f"Server processing error: {str(exception)}",
-                "error": str(exception)
+                "message": message,
             }, status=status_code)
         return None

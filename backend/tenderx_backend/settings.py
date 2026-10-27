@@ -125,8 +125,6 @@ POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', os.getenv('DB_PASSWORD', 'ten
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', os.getenv('DB_HOST', 'db'))
 POSTGRES_PORT = os.getenv('POSTGRES_PORT', os.getenv('DB_PORT', '5432'))
 
-import dj_database_url
-
 USE_SQLITE = os.getenv('USE_SQLITE', 'False').lower() == 'true'
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
@@ -138,6 +136,17 @@ if USE_SQLITE or (not DATABASE_URL and not os.getenv('POSTGRES_HOST')):
         }
     }
 elif DATABASE_URL:
+    # This optional package is only needed when a DATABASE_URL is supplied.
+    # Keeping the import here lets local SQLite development start even if a
+    # partially-created virtual environment has not installed it yet.
+    try:
+        import dj_database_url
+    except ImportError as exc:
+        raise ImportError(
+            "dj-database-url is required when DATABASE_URL is configured. "
+            "Install dependencies with `pip install -r requirements.txt`."
+        ) from exc
+
     is_supabase_pooler = 'pooler.supabase.com' in DATABASE_URL
     default_conn_max_age = 0 if is_supabase_pooler else 600
     conn_max_age = int(os.getenv('DB_CONN_MAX_AGE', str(default_conn_max_age)))
