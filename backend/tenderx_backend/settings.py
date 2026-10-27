@@ -125,25 +125,53 @@ POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', os.getenv('DB_PASSWORD', 'ten
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', os.getenv('DB_HOST', 'db'))
 POSTGRES_PORT = os.getenv('POSTGRES_PORT', os.getenv('DB_PORT', '5432'))
 
-# A direct ``python manage.py runserver`` command should work without Docker.
-# Docker Compose explicitly sets USE_SQLITE=False and supplies PostgreSQL.
 import dj_database_url
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+USE_SQLITE = os.getenv('USE_SQLITE', 'False').lower() == 'true'
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
-if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL is not configured. "
-        "Please add your Supabase PostgreSQL connection string to .env"
-    )
-
-DATABASES = {
-    "default": dj_database_url.parse(
+if USE_SQLITE or (not DATABASE_URL and not os.getenv('POSTGRES_HOST')):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+elif DATABASE_URL:
+    db_config = dj_database_url.parse(
         DATABASE_URL,
-        conn_max_age=600,
+        conn_max_age=int(os.getenv('DB_CONN_MAX_AGE', '600')),
         ssl_require=True,
     )
-}
+    # Supabase connection resilience:
+    # 1. Automatic reconnection for stale pooler sockets
+    db_config['CONN_HEALTH_CHECKS'] = True
+    # 2. Supavisor transaction pooler does not support server-side cursors
+    db_config['DISABLE_SERVER_SIDE_CURSORS'] = True
+    if 'OPTIONS' not in db_config:
+        db_config['OPTIONS'] = {}
+    db_config['OPTIONS'].setdefault('sslmode', 'require')
+    db_config['OPTIONS'].setdefault('connect_timeout', 10)
+    DATABASES = {'default': db_config}
+else:
+    try:
+        import psycopg2
+        db_engine = 'django.db.backends.postgresql'
+    except ImportError:
+        db_engine = 'django.db.backends.sqlite3'
+
+    DATABASES = {
+        'default': {
+            'ENGINE': db_engine,
+            'NAME': POSTGRES_DB if db_engine == 'django.db.backends.postgresql' else BASE_DIR / 'db.sqlite3',
+            'USER': POSTGRES_USER,
+            'PASSWORD': POSTGRES_PASSWORD,
+            'HOST': POSTGRES_HOST,
+            'PORT': POSTGRES_PORT,
+            'CONN_MAX_AGE': 600,
+            'CONN_HEALTH_CHECKS': True,
+        }
+    }
 
 
 

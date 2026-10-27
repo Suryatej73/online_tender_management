@@ -164,62 +164,76 @@ def record_user_session(user, request, refresh_jti):
 
 # Seed initial default permissions & roles if empty
 def seed_default_permissions():
-    if Permission.objects.exists():
-        return
+    try:
+        if Permission.objects.exists():
+            return
 
-    permissions_list = [
-        # Tender Management
-        ("tender:view", "View Tender Specifications", "Tender Management", "View active and archived tenders"),
-        ("tender:create", "Create Tender", "Tender Management", "Publish new tender procurement notices"),
-        ("tender:edit", "Edit Tender", "Tender Management", "Modify existing tender details and specs"),
-        ("tender:delete", "Delete Tender", "Tender Management", "Cancel or archive tender postings"),
-        ("tender:approve", "Approve Tender Notice", "Tender Management", "Sign off and release tenders"),
+        permissions_list = [
+            # Tender Management
+            ("tender:view", "View Tender Specifications", "Tender Management", "View active and archived tenders"),
+            ("tender:create", "Create Tender", "Tender Management", "Publish new tender procurement notices"),
+            ("tender:edit", "Edit Tender", "Tender Management", "Modify existing tender details and specs"),
+            ("tender:delete", "Delete Tender", "Tender Management", "Cancel or archive tender postings"),
+            ("tender:approve", "Approve Tender Notice", "Tender Management", "Sign off and release tenders"),
 
-        # Bid Management
-        ("bid:view", "View Bids", "Bid Management", "Inspect submitted vendor proposals"),
-        ("bid:evaluate", "Evaluate Bids", "Bid Management", "Score technical and financial bids"),
-        ("bid:modify", "Modify Evaluation Scores", "Bid Management", "Adjust bid scoring rubrics"),
+            # Bid Management
+            ("bid:view", "View Bids", "Bid Management", "Inspect submitted vendor proposals"),
+            ("bid:evaluate", "Evaluate Bids", "Bid Management", "Score technical and financial bids"),
+            ("bid:modify", "Modify Evaluation Scores", "Bid Management", "Adjust bid scoring rubrics"),
 
-        # Reports
-        ("reports:view", "View Spend Reports", "Reports & Analytics", "Access procurement analytics dashboards"),
-        ("reports:export", "Export Audit Logs", "Reports & Analytics", "Download audit logs and compliance reports"),
+            # Reports
+            ("reports:view", "View Spend Reports", "Reports & Analytics", "Access procurement analytics dashboards"),
+            ("reports:export", "Export Audit Logs", "Reports & Analytics", "Download audit logs and compliance reports"),
 
-        # Users
-        ("users:view", "View User Directory", "User Management", "View user profiles and organizational tree"),
-        ("users:edit", "Manage User Accounts", "User Management", "Create, edit, suspend, and configure user accounts"),
-    ]
+            # Users
+            ("users:view", "View User Directory", "User Management", "View user profiles and organizational tree"),
+            ("users:edit", "Manage User Accounts", "User Management", "Create, edit, suspend, and configure user accounts"),
+        ]
 
-    perm_objs = {}
-    for code, name, category, desc in permissions_list:
-        p, _ = Permission.objects.get_or_create(code=code, defaults={"name": name, "category": category, "description": desc})
-        perm_objs[code] = p
+        perm_objs = {}
+        for code, name, category, desc in permissions_list:
+            p, _ = Permission.objects.get_or_create(code=code, defaults={"name": name, "category": category, "description": desc})
+            perm_objs[code] = p
 
-    # Role mappings
-    role_mapping = {
-        UserRole.SUPER_ADMIN: list(perm_objs.keys()),
-        UserRole.ORG_ADMIN: ["tender:view", "tender:create", "tender:edit", "tender:approve", "bid:view", "bid:evaluate", "reports:view", "reports:export", "users:view", "users:edit"],
-        UserRole.TENDER_MANAGER: ["tender:view", "tender:create", "tender:edit", "tender:approve", "bid:view", "reports:view"],
-        UserRole.EVALUATOR: ["tender:view", "bid:view", "bid:evaluate", "bid:modify", "reports:view"],
-        UserRole.AUDITOR: ["tender:view", "bid:view", "reports:view", "reports:export", "users:view"],
-        UserRole.VENDOR: ["tender:view", "bid:view"]
-    }
+        # Role mappings
+        role_mapping = {
+            UserRole.SUPER_ADMIN: list(perm_objs.keys()),
+            UserRole.ORG_ADMIN: ["tender:view", "tender:create", "tender:edit", "tender:approve", "bid:view", "bid:evaluate", "reports:view", "reports:export", "users:view", "users:edit"],
+            UserRole.TENDER_MANAGER: ["tender:view", "tender:create", "tender:edit", "tender:approve", "bid:view", "reports:view"],
+            UserRole.EVALUATOR: ["tender:view", "bid:view", "bid:evaluate", "bid:modify", "reports:view"],
+            UserRole.AUDITOR: ["tender:view", "bid:view", "reports:view", "reports:export", "users:view"],
+            UserRole.VENDOR: ["tender:view", "bid:view"]
+        }
 
-    for role, codes in role_mapping.items():
-        for code in codes:
-            RolePermission.objects.get_or_create(role=role, permission=perm_objs[code])
+        for role, codes in role_mapping.items():
+            for code in codes:
+                RolePermission.objects.get_or_create(role=role, permission=perm_objs[code])
 
-    if not User.objects.filter(role=UserRole.SUPER_ADMIN).exists():
-        User.objects.create_user(
-            username='admin@tenderx.gov',
-            email='admin@tenderx.gov',
-            password='Admin123!',
-            role=UserRole.SUPER_ADMIN,
-            first_name='System',
-            last_name='Administrator',
-            organization_name='National Procurement Authority',
-            is_staff=True,
-            is_superuser=True
+        if not User.objects.filter(role=UserRole.SUPER_ADMIN).exists():
+            User.objects.create_user(
+                username='admin@tenderx.gov',
+                email='admin@tenderx.gov',
+                password='Admin123!',
+                role=UserRole.SUPER_ADMIN,
+                first_name='System',
+                last_name='Administrator',
+                organization_name='National Procurement Authority',
+                is_staff=True,
+                is_superuser=True
+            )
+    except Exception as e:
+        print(f"[WARN] Database connection not available during seed_default_permissions: {e}")
+
+
+def _format_db_error(db_err):
+    err_str = str(db_err)
+    if 'tenant/user' in err_str or 'not found' in err_str or 'ENOTFOUND' in err_str:
+        return (
+            "Database connection failed: Your Supabase project appears to be PAUSED due to inactivity. "
+            "Please go to your Supabase dashboard (https://supabase.com/dashboard) and click 'Restore Project', "
+            "or set USE_SQLITE=True in .env to use local database."
         )
+    return f"Database connection error: {err_str}"
 
 
 class RegisterView(APIView):
@@ -227,28 +241,33 @@ class RegisterView(APIView):
     authentication_classes = []
 
     def post(self, request):
-        data = get_request_data(request)
-        serializer = RegisterSerializer(data=data)
-        if serializer.is_valid():
-            user = serializer.save()
-            user.is_email_verified = False
-            user.status = UserStatus.PENDING_VERIFICATION
-            user.save(update_fields=['is_email_verified', 'status', 'updated_at'])
+        try:
+            data = get_request_data(request)
+            serializer = RegisterSerializer(data=data)
+            if serializer.is_valid():
+                user = serializer.save()
+                user.is_email_verified = False
+                user.status = UserStatus.PENDING_VERIFICATION
+                user.save(update_fields=['is_email_verified', 'status', 'updated_at'])
 
-            otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.SIGNUP, user)
-            log_activity(user, "User Registration (Pending OTP Verification)", resource="Authentication", request=request)
+                otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.SIGNUP, user)
+                log_activity(user, "User Registration (Pending OTP Verification)", resource="Authentication", request=request)
 
-            return Response({
-                "message": f"User registered successfully! OTP verification code sent to {masked_email}. (Demo Code: {otp_code})",
-                "otp_required": True,
-                "purpose": OTPPurpose.SIGNUP,
-                "temp_token": str(otp_obj.temp_token),
-                "masked_email": masked_email,
-                "demo_otp_hint": otp_code,
-                "user": UserSerializer(user).data
-            }, status=status.HTTP_201_CREATED)
+                return Response({
+                    "message": f"User registered successfully! OTP verification code sent to {masked_email}. (Demo Code: {otp_code})",
+                    "otp_required": True,
+                    "purpose": OTPPurpose.SIGNUP,
+                    "temp_token": str(otp_obj.temp_token),
+                    "masked_email": masked_email,
+                    "demo_otp_hint": otp_code,
+                    "user": UserSerializer(user).data
+                }, status=status.HTTP_201_CREATED)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            if 'OperationalError' in type(e).__name__ or 'psycopg2' in str(type(e)):
+                return Response({"error": _format_db_error(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            raise
 
 
 class LoginView(APIView):
@@ -256,48 +275,53 @@ class LoginView(APIView):
     authentication_classes = []
 
     def post(self, request):
-        seed_default_permissions()
-        data = get_request_data(request)
-        serializer = LoginSerializer(data=data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            seed_default_permissions()
+            data = get_request_data(request)
+            serializer = LoginSerializer(data=data)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        email = serializer.validated_data.get('email', data.get('email'))
-        password = serializer.validated_data.get('password', data.get('password'))
+            email = serializer.validated_data.get('email', data.get('email'))
+            password = serializer.validated_data.get('password', data.get('password'))
 
-        ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
-        user_agent = request.META.get('HTTP_USER_AGENT', 'Browser')
+            ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
+            user_agent = request.META.get('HTTP_USER_AGENT', 'Browser')
 
-        user = authenticate(request, username=email, password=password)
-        if not user:
-            try_user = User.objects.filter(email__iexact=email).first()
-            if try_user and try_user.check_password(password):
-                user = try_user
+            user = authenticate(request, username=email, password=password)
+            if not user:
+                try_user = User.objects.filter(email__iexact=email).first()
+                if try_user and try_user.check_password(password):
+                    user = try_user
 
-        if not user:
-            LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=False, failure_reason="Invalid credentials")
-            return Response({"error": "Invalid email address or password."}, status=status.HTTP_401_UNAUTHORIZED)
+            if not user:
+                LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=False, failure_reason="Invalid credentials")
+                return Response({"error": "Invalid email address or password."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        if user.status == UserStatus.SUSPENDED:
-            LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=False, failure_reason="Account suspended")
-            return Response({"error": "Account is suspended. Please contact administrator."}, status=status.HTTP_403_FORBIDDEN)
+            if user.status == UserStatus.SUSPENDED:
+                LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=False, failure_reason="Account suspended")
+                return Response({"error": "Account is suspended. Please contact administrator."}, status=status.HTTP_403_FORBIDDEN)
 
-        LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=True)
-        user.last_login_ip = ip
-        user.save(update_fields=['last_login_ip'])
+            LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=True)
+            user.last_login_ip = ip
+            user.save(update_fields=['last_login_ip'])
 
-        # Credentials validated -> Generate 6-digit OTP & return temp_token (DO NOT issue JWT tokens yet)
-        otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.LOGIN, user)
-        log_activity(user, "User Login Credentials Verified (OTP Sent)", resource="Authentication Session", details=f"Logged in from {ip}", request=request)
+            # Credentials validated -> Generate 6-digit OTP & return temp_token (DO NOT issue JWT tokens yet)
+            otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.LOGIN, user)
+            log_activity(user, "User Login Credentials Verified (OTP Sent)", resource="Authentication Session", details=f"Logged in from {ip}", request=request)
 
-        return Response({
-            "otp_required": True,
-            "purpose": OTPPurpose.LOGIN,
-            "message": f"Credentials verified. Security OTP code sent to {masked_email}. (Demo Code: {otp_code})",
-            "temp_token": str(otp_obj.temp_token),
-            "masked_email": masked_email,
-            "demo_otp_hint": otp_code
-        }, status=status.HTTP_200_OK)
+            return Response({
+                "otp_required": True,
+                "purpose": OTPPurpose.LOGIN,
+                "message": f"Credentials verified. Security OTP code sent to {masked_email}. (Demo Code: {otp_code})",
+                "temp_token": str(otp_obj.temp_token),
+                "masked_email": masked_email,
+                "demo_otp_hint": otp_code
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            if 'OperationalError' in type(e).__name__ or 'psycopg2' in str(type(e)):
+                return Response({"error": _format_db_error(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            raise
 
 
 
