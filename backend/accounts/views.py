@@ -409,6 +409,80 @@ class GoogleLoginView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+class TokenRefreshView(APIView):
+    """
+    Takes a refresh type JSON web token and returns an access type JSON web
+    token if the refresh token is valid.
+    """
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        try:
+            data = get_request_data(request)
+            refresh_token = data.get('refresh')
+            if not refresh_token:
+                return Response(
+                    {'error': 'Refresh token is required', 'detail': 'Refresh token is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 1. Try rest_framework_simplejwt if installed
+            try:
+                from rest_framework_simplejwt.tokens import RefreshToken
+                token = RefreshToken(refresh_token)
+                return Response({
+                    'access': str(token.access_token),
+                    'refresh': str(token)
+                }, status=status.HTTP_200_OK)
+            except ImportError:
+                pass
+            except Exception:
+                pass
+
+            # 2. Support dev-refresh-token format: dev-refresh-token-<user_id>
+            if isinstance(refresh_token, str) and refresh_token.startswith('dev-refresh-token-'):
+                user_id = refresh_token.replace('dev-refresh-token-', '').strip()
+                try:
+                    user = User.objects.filter(id=user_id).first()
+                    if user:
+                        tokens = get_tokens_for_user(user)
+                        return Response({
+                            'access': tokens['access'],
+                            'refresh': tokens['refresh']
+                        }, status=status.HTTP_200_OK)
+                except Exception:
+                    pass
+
+            # 3. Support PyJWT if available
+            try:
+                import jwt
+                from django.conf import settings
+                payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=['HS256'])
+                user_id = payload.get('user_id')
+                if user_id:
+                    user = User.objects.filter(id=user_id).first()
+                    if user:
+                        tokens = get_tokens_for_user(user)
+                        return Response({
+                            'access': tokens['access'],
+                            'refresh': tokens['refresh']
+                        }, status=status.HTTP_200_OK)
+            except Exception:
+                pass
+
+            return Response({
+                'error': 'Token is invalid or expired',
+                'detail': 'Token is invalid or expired',
+                'code': 'token_not_valid'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            return Response({
+                'error': f'Refresh failed: {str(e)}',
+                'detail': f'Refresh failed: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
 class SendOTPView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []

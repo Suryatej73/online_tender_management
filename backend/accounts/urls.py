@@ -1,8 +1,9 @@
 from django.urls import path
+
 try:
-    from rest_framework_simplejwt.views import TokenRefreshView
+    from rest_framework_simplejwt.views import TokenRefreshView as _JwtTokenRefreshView
 except ImportError:
-    TokenRefreshView = None
+    _JwtTokenRefreshView = None
 
 from .views import (
     RegisterView, LoginView, MFALoginView, UserProfileView, EmailVerifyView,
@@ -12,8 +13,11 @@ from .views import (
     UserVerifyView, UserAdminResetPasswordView, UserActivityView,
     UserDetailSessionsView, RolesView, PermissionsView, RolePermissionsUpdateView,
     OrganizationsView, DepartmentsView, GoogleLoginView, SendOTPView, VerifyOTPView,
-    VerifySignupOTPView, VerifyLoginOTPView, ResendOTPView, EvaluatorOversightView
+    VerifySignupOTPView, VerifyLoginOTPView, ResendOTPView, EvaluatorOversightView,
+    TokenRefreshView as _LocalTokenRefreshView
 )
+
+TokenRefreshView = _JwtTokenRefreshView or _LocalTokenRefreshView
 from .admin_views import (
     AdminDashboardView, AdminOrganizationView, AdminOrganizationVerifyView,
     AdminVendorManagementView, AdminVendorVerifyView, AdminVendorSuspendView,
