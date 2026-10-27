@@ -138,9 +138,13 @@ if USE_SQLITE or (not DATABASE_URL and not os.getenv('POSTGRES_HOST')):
         }
     }
 elif DATABASE_URL:
+    is_supabase_pooler = 'pooler.supabase.com' in DATABASE_URL
+    default_conn_max_age = 0 if is_supabase_pooler else 600
+    conn_max_age = int(os.getenv('DB_CONN_MAX_AGE', str(default_conn_max_age)))
+
     db_config = dj_database_url.parse(
         DATABASE_URL,
-        conn_max_age=int(os.getenv('DB_CONN_MAX_AGE', '600')),
+        conn_max_age=conn_max_age,
         ssl_require=True,
     )
     # Supabase connection resilience:
@@ -148,6 +152,11 @@ elif DATABASE_URL:
     db_config['CONN_HEALTH_CHECKS'] = True
     # 2. Supavisor transaction pooler does not support server-side cursors
     db_config['DISABLE_SERVER_SIDE_CURSORS'] = True
+    # 3. For Supabase pooler, prefer port 6543 (transaction mode) if not overridden
+    if is_supabase_pooler and str(db_config.get('PORT')) == '5432':
+        # Default to transaction pooler port 6543 to avoid EMAXCONNSESSION (15 max clients in session mode)
+        db_config['PORT'] = int(os.getenv('SUPABASE_POOLER_PORT', '6543'))
+
     if 'OPTIONS' not in db_config:
         db_config['OPTIONS'] = {}
     db_config['OPTIONS'].setdefault('sslmode', 'require')
