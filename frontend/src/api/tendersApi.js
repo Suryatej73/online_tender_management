@@ -1,11 +1,57 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
+export function getAuthToken() {
+  let token = localStorage.getItem('access_token');
+  if (!token) {
+    const tenderxTokens = localStorage.getItem('tenderx_tokens');
+    if (tenderxTokens) {
+      try {
+        const parsed = JSON.parse(tenderxTokens);
+        token = parsed.access || parsed.token;
+      } catch (e) {}
+    }
+  }
+  return token;
+}
+
+async function tryRefreshToken() {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.access) {
+        localStorage.setItem('access_token', data.access);
+        const tenderxTokens = localStorage.getItem('tenderx_tokens');
+        if (tenderxTokens) {
+          try {
+            const parsed = JSON.parse(tenderxTokens);
+            parsed.access = data.access;
+            localStorage.setItem('tenderx_tokens', JSON.stringify(parsed));
+          } catch (e) {}
+        }
+        return data.access;
+      }
+    }
+  } catch (err) {}
+  return null;
+}
 
 async function handleResponse(response) {
   if (!response.ok) {
     if (response.status === 401) {
+      // Clear token on definitive 401
       localStorage.removeItem('access_token');
       localStorage.removeItem('tenderx_tokens');
+      throw new Error('Authentication required: You must be logged in as a Tender Manager, Organization Admin, or Super Admin to perform this action. Please sign in.');
+    }
+    if (response.status === 403) {
+      throw new Error('Permission Denied: Your account role does not have authorization to create or modify tenders (requires Tender Manager or Admin role).');
     }
     let errorMsg = 'API Request failed';
     try {
@@ -23,30 +69,35 @@ async function handleResponse(response) {
   return response.json();
 }
 
-function getAuthHeaders() {
-  let token = localStorage.getItem('access_token');
-  if (!token) {
-    const tenderxTokens = localStorage.getItem('tenderx_tokens');
-    if (tenderxTokens) {
-      try {
-        const parsed = JSON.parse(tenderxTokens);
-        token = parsed.access || parsed.token;
-      } catch (e) {}
+async function fetchWithAuth(url, options = {}) {
+  let token = getAuthToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+
+  let response = await fetch(url, { ...options, headers });
+
+  // If 401 Unauthorized, attempt automatic token refresh once
+  if (response.status === 401) {
+    const refreshedToken = await tryRefreshToken();
+    if (refreshedToken) {
+      const retryHeaders = {
+        ...headers,
+        'Authorization': `Bearer ${refreshedToken}`
+      };
+      response = await fetch(url, { ...options, headers: retryHeaders });
     }
   }
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-  };
+
+  return handleResponse(response);
 }
 
 export const tendersApi = {
   // Tender CRUD & Search
   async getDashboard() {
-    const response = await fetch(`${API_BASE_URL}/tenders/dashboard/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/tenders/dashboard/`);
   },
 
   async getTenders(filters = {}) {
@@ -62,118 +113,88 @@ export const tendersApi = {
     if (filters.sortBy) query.append('sortBy', filters.sortBy);
     if (filters.order) query.append('order', filters.order);
 
-    const response = await fetch(`${API_BASE_URL}/tenders/?${query.toString()}`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/tenders/?${query.toString()}`);
   },
 
   async createTender(tenderData) {
-    const response = await fetch(`${API_BASE_URL}/tenders/`, {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication required: Please log in as a Tender Manager or Administrator before creating a tender.');
+    }
+    return fetchWithAuth(`${API_BASE_URL}/tenders/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify(tenderData)
     });
-    return handleResponse(response);
   },
 
   async getTenderDetail(id) {
-    const response = await fetch(`${API_BASE_URL}/tenders/${id}/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${id}/`);
   },
 
   async updateTender(id, data) {
-    const response = await fetch(`${API_BASE_URL}/tenders/${id}/`, {
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${id}/`, {
       method: 'PATCH',
-      headers: getAuthHeaders(),
       body: JSON.stringify(data)
     });
-    return handleResponse(response);
   },
 
   async deleteTender(id) {
-    const response = await fetch(`${API_BASE_URL}/tenders/${id}/`, {
-      method: 'DELETE',
-      headers: getAuthHeaders()
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${id}/`, {
+      method: 'DELETE'
     });
-    return handleResponse(response);
   },
 
   // State Machine Transition
   async transitionTender(id, targetStatus, reason = '') {
-    const response = await fetch(`${API_BASE_URL}/tenders/${id}/transition/`, {
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${id}/transition/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify({ targetStatus, reason })
     });
-    return handleResponse(response);
   },
 
   // Categories
   async getCategories() {
-    const response = await fetch(`${API_BASE_URL}/tender-categories/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/tender-categories/`);
   },
 
   async createCategory(categoryData) {
-    const response = await fetch(`${API_BASE_URL}/tender-categories/`, {
+    return fetchWithAuth(`${API_BASE_URL}/tender-categories/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify(categoryData)
     });
-    return handleResponse(response);
   },
 
   // Templates
   async getTemplates() {
-    const response = await fetch(`${API_BASE_URL}/tender-templates/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/tender-templates/`);
   },
 
   async applyTemplate(templateId) {
-    const response = await fetch(`${API_BASE_URL}/tender-templates/${templateId}/apply/`, {
-      method: 'POST',
-      headers: getAuthHeaders()
+    return fetchWithAuth(`${API_BASE_URL}/tender-templates/${templateId}/apply/`, {
+      method: 'POST'
     });
-    return handleResponse(response);
   },
 
   // Amendments
   async getAmendments(tenderId) {
-    const response = await fetch(`${API_BASE_URL}/tenders/${tenderId}/amendments/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${tenderId}/amendments/`);
   },
 
   async createAmendment(tenderId, amendmentData) {
-    const response = await fetch(`${API_BASE_URL}/tenders/${tenderId}/amendments/`, {
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${tenderId}/amendments/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify(amendmentData)
     });
-    return handleResponse(response);
   },
 
   async publishAmendment(tenderId, amendmentId) {
-    const response = await fetch(`${API_BASE_URL}/tenders/${tenderId}/amendments/${amendmentId}/publish/`, {
-      method: 'POST',
-      headers: getAuthHeaders()
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${tenderId}/amendments/${amendmentId}/publish/`, {
+      method: 'POST'
     });
-    return handleResponse(response);
   },
 
   // Versions
   async getTenderVersions(tenderId) {
-    const response = await fetch(`${API_BASE_URL}/tenders/${tenderId}/versions/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${tenderId}/versions/`);
   }
 };

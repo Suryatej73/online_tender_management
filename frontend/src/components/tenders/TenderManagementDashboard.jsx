@@ -99,6 +99,17 @@ export default function TenderManagementDashboard() {
   const handleCreateTender = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!user) {
+      setError('You are not signed in. Please sign in as a Tender Manager or Administrator to create tenders.');
+      return;
+    }
+
+    if (user.role === 'VENDOR') {
+      setError('Your current role is VENDOR. Vendors can only submit bids. To publish tenders, please sign in as a Tender Manager or Administrator.');
+      return;
+    }
+
     try {
       const payload = {
         ...formData,
@@ -435,6 +446,18 @@ export default function TenderManagementDashboard() {
               <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>Create New Procurement Tender</h3>
               <button onClick={() => setCreateModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
             </div>
+
+            {!user ? (
+              <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <AlertCircle size={16} />
+                <span>You are currently not signed in. Please sign in as a <strong>Tender Manager</strong> or <strong>Administrator</strong> to create tenders.</span>
+              </div>
+            ) : user.role === 'VENDOR' ? (
+              <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <AlertCircle size={16} />
+                <span>Your account role is <strong>VENDOR</strong>. Vendors can only submit bids. To create tenders, please sign in with a <strong>Tender Manager</strong> or <strong>Admin</strong> account.</span>
+              </div>
+            ) : null}
 
             <form onSubmit={handleCreateTender} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>

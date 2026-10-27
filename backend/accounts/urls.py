@@ -1,4 +1,9 @@
 from django.urls import path
+try:
+    from rest_framework_simplejwt.views import TokenRefreshView
+except ImportError:
+    TokenRefreshView = None
+
 from .views import (
     RegisterView, LoginView, MFALoginView, UserProfileView, EmailVerifyView,
     PasswordResetRequestView, PasswordResetConfirmView, MFASetupView,
@@ -22,6 +27,8 @@ from .admin_views import (
 
 urlpatterns = [
     # Auth
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('refresh/', TokenRefreshView.as_view(), name='auth_refresh'),
     path('register/', RegisterView.as_view(), name='auth_register'),
     path('login/', LoginView.as_view(), name='auth_login'),
     path('login/mfa/', MFALoginView.as_view(), name='auth_login_mfa'),
