@@ -18,3 +18,17 @@ class ApiCsrfExemptMiddleware(MiddlewareMixin):
         if path.startswith('/api/'):
             setattr(request, '_dont_enforce_csrf_checks', True)
         return None
+
+    def process_exception(self, request, exception):
+        path = getattr(request, 'path_info', getattr(request, 'path', ''))
+        if path.startswith('/api/'):
+            from django.http import JsonResponse
+            import logging
+            logging.getLogger('tenderx.api').error(f"Unhandled API error on {path}: {str(exception)}", exc_info=True)
+            status_code = 400 if isinstance(exception, (ValueError, KeyError, TypeError)) else 500
+            return JsonResponse({
+                "success": False,
+                "message": f"Server processing error: {str(exception)}",
+                "error": str(exception)
+            }, status=status_code)
+        return None

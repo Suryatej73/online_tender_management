@@ -38,6 +38,8 @@ except ImportError:
         HTTP_403_FORBIDDEN = 403
         HTTP_404_NOT_FOUND = 404
         HTTP_409_CONFLICT = 409
+        HTTP_500_INTERNAL_SERVER_ERROR = 500
+        HTTP_503_SERVICE_UNAVAILABLE = 503
 
 from accounts.views import get_request_data
 from accounts.models import UserRole, User

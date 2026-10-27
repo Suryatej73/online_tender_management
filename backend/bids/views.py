@@ -39,6 +39,8 @@ except ImportError:
         HTTP_404_NOT_FOUND = 404
         HTTP_409_CONFLICT = 409
         HTTP_410_GONE = 410
+        HTTP_500_INTERNAL_SERVER_ERROR = 500
+        HTTP_503_SERVICE_UNAVAILABLE = 503
     class MultiPartParser: pass
     class FormParser: pass
 

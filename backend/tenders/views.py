@@ -38,6 +38,8 @@ except ImportError:
         HTTP_403_FORBIDDEN = 403
         HTTP_404_NOT_FOUND = 404
         HTTP_409_CONFLICT = 409
+        HTTP_500_INTERNAL_SERVER_ERROR = 500
+        HTTP_503_SERVICE_UNAVAILABLE = 503
 
 from .models import (
     Tender, TenderCategory, TenderDocument, TenderStatusHistory,
@@ -54,8 +56,18 @@ from .permissions import IsTenderManagerOrAdmin, CanViewTender, CanEditTender
 
 def generate_tender_number():
     year = timezone.now().year
-    count = Tender.objects.filter(created_at__year=year).count() + 1
-    return f"TND-{year}-{count:06d}"
+    try:
+        count = Tender.objects.filter(created_at__year=year).count() + 1
+    except Exception:
+        count = 1
+    candidate = f"TND-{year}-{count:06d}"
+    try:
+        while Tender.objects.filter(tender_number=candidate).exists():
+            count += 1
+            candidate = f"TND-{year}-{count:06d}"
+    except Exception:
+        candidate = f"TND-{year}-{uuid.uuid4().hex[:6].upper()}"
+    return candidate
 
 
 class TenderDashboardView(APIView):
@@ -169,26 +181,73 @@ class TenderListCreateView(APIView):
         }, status=status.HTTP_200_OK)
 
     def post(self, request):
-        data = get_request_data(request)
-        serializer = TenderCreateUpdateSerializer(data=data)
-        if serializer.is_valid():
-            tender_number = generate_tender_number()
-            tender = serializer.save()
-            tender.tender_number = tender_number
-            tender.status = TenderStatus.DRAFT
-            if hasattr(request, 'user') and request.user.is_authenticated:
-                tender.created_by = request.user
-                if hasattr(request.user, 'organization') and request.user.organization:
-                    tender.organization = request.user.organization
-            tender.save()
+        try:
+            raw_data = get_request_data(request)
+            data = dict(raw_data) if isinstance(raw_data, dict) else {}
 
-            TenderStatusHistory.objects.create(
-                tender=tender,
-                from_status="NONE",
-                to_status=TenderStatus.DRAFT,
-                changed_by=request.user if hasattr(request, 'user') and request.user.is_authenticated else None,
-                reason="Created initial draft tender"
-            )
+            # Sanitize empty string foreign keys so PostgreSQL doesn't choke on invalid UUID
+            for fk in ['category', 'organization', 'parent_category']:
+                val = data.get(fk)
+                if val is not None and isinstance(val, str):
+                    val_str = val.strip()
+                    if not val_str or val_str.lower() in ('null', 'none', 'undefined', '""'):
+                        data[fk] = None
+                    else:
+                        try:
+                            uuid.UUID(val_str)
+                        except (ValueError, AttributeError):
+                            data[fk] = None
+
+            serializer = TenderCreateUpdateSerializer(data=data)
+            if not serializer.is_valid():
+                return Response({
+                    "success": False,
+                    "message": "Validation failed",
+                    "errors": serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            tender_number = generate_tender_number()
+            save_kwargs = {
+                'tender_number': tender_number,
+                'status': TenderStatus.DRAFT,
+            }
+            if hasattr(request, 'user') and request.user.is_authenticated:
+                save_kwargs['created_by'] = request.user
+                if hasattr(request.user, 'organization') and request.user.organization:
+                    save_kwargs['organization'] = request.user.organization
+
+            tender = serializer.save(**save_kwargs)
+            if tender is None:
+                tender = Tender.objects.create(
+                    tender_number=tender_number,
+                    title=data.get('title', 'Untitled Tender'),
+                    description=data.get('description', ''),
+                    status=TenderStatus.DRAFT,
+                    budget=data.get('budget') or 0.00,
+                    currency=data.get('currency', 'USD'),
+                    created_by=request.user if hasattr(request, 'user') and request.user.is_authenticated else None,
+                    organization=request.user.organization if hasattr(request, 'user') and request.user.is_authenticated and hasattr(request.user, 'organization') else None
+                )
+            else:
+                if not getattr(tender, 'tender_number', None) or tender.tender_number != tender_number:
+                    tender.tender_number = tender_number
+                tender.status = TenderStatus.DRAFT
+                if hasattr(request, 'user') and request.user.is_authenticated and not tender.created_by:
+                    tender.created_by = request.user
+                if hasattr(request, 'user') and request.user.is_authenticated and hasattr(request.user, 'organization') and request.user.organization and not tender.organization:
+                    tender.organization = request.user.organization
+                tender.save()
+
+            try:
+                TenderStatusHistory.objects.create(
+                    tender=tender,
+                    from_status="NONE",
+                    to_status=TenderStatus.DRAFT,
+                    changed_by=request.user if hasattr(request, 'user') and request.user.is_authenticated else None,
+                    reason="Created initial draft tender"
+                )
+            except Exception:
+                pass
 
             return Response({
                 "success": True,
@@ -196,11 +255,12 @@ class TenderListCreateView(APIView):
                 "data": TenderSerializer(tender).data
             }, status=status.HTTP_201_CREATED)
 
-        return Response({
-            "success": False,
-            "message": "Validation failed",
-            "errors": serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                "success": False,
+                "message": f"Failed to create draft tender: {str(e)}",
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class TenderDetailView(APIView):

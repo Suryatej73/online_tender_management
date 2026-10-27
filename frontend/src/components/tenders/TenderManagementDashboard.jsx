@@ -102,6 +102,7 @@ export default function TenderManagementDashboard() {
     try {
       const payload = {
         ...formData,
+        category: formData.category ? formData.category : null,
         budget: formData.budget ? parseFloat(formData.budget) : 0,
         submission_deadline: formData.submission_deadline ? new Date(formData.submission_deadline).toISOString() : null,
         opening_date: formData.opening_date ? new Date(formData.opening_date).toISOString() : null
