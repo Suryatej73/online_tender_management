@@ -2,19 +2,23 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 export function getAuthToken() {
   let token = localStorage.getItem('access_token');
+  if (token === 'null' || token === 'undefined' || token === '') {
+    token = null;
+  }
   if (!token) {
     const tenderxTokens = localStorage.getItem('tenderx_tokens');
     if (tenderxTokens) {
       try {
         const parsed = JSON.parse(tenderxTokens);
         token = parsed.access || parsed.token;
+        if (token === 'null' || token === 'undefined') token = null;
       } catch (e) {}
     }
   }
   return token;
 }
 
-async function tryRefreshToken() {
+export async function tryRefreshToken() {
   const refreshToken = localStorage.getItem('refresh_token');
   if (!refreshToken) return null;
   try {
@@ -42,13 +46,18 @@ async function tryRefreshToken() {
   return null;
 }
 
+export async function ensureAuthToken() {
+  let token = getAuthToken();
+  if (!token) {
+    token = await tryRefreshToken();
+  }
+  return token;
+}
+
 async function handleResponse(response) {
   if (!response.ok) {
     if (response.status === 401) {
-      // Clear token on definitive 401
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('tenderx_tokens');
-      throw new Error('Authentication required: You must be logged in as a Tender Manager, Organization Admin, or Super Admin to perform this action. Please sign in.');
+      throw new Error('Authentication required: Your session has expired or you are not signed in. Please sign in as a Tender Manager or Administrator.');
     }
     if (response.status === 403) {
       throw new Error('Permission Denied: Your account role does not have authorization to create or modify tenders (requires Tender Manager or Admin role).');
@@ -77,7 +86,7 @@ async function handleResponse(response) {
 }
 
 async function fetchWithAuth(url, options = {}) {
-  let token = getAuthToken();
+  let token = await ensureAuthToken();
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -124,10 +133,6 @@ export const tendersApi = {
   },
 
   async createTender(tenderData) {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error('Authentication required: Please log in as a Tender Manager or Administrator before creating a tender.');
-    }
     return fetchWithAuth(`${API_BASE_URL}/tenders/`, {
       method: 'POST',
       body: JSON.stringify(tenderData)

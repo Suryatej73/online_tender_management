@@ -105,8 +105,9 @@ export default function TenderManagementDashboard() {
       return;
     }
 
-    if (user.role === 'VENDOR') {
-      setError('Your current role is VENDOR. Vendors can only submit bids. To publish tenders, please sign in as a Tender Manager or Administrator.');
+    const canCreate = ['SUPER_ADMIN', 'ORG_ADMIN', 'TENDER_MANAGER'].includes(user?.role);
+    if (!canCreate) {
+      setError(`Permission denied: Your current role is ${user?.role || 'Guest'}. Only Tender Managers, Organization Admins, and Super Admins can create tenders.`);
       return;
     }
 
@@ -452,10 +453,10 @@ export default function TenderManagementDashboard() {
                 <AlertCircle size={16} />
                 <span>You are currently not signed in. Please sign in as a <strong>Tender Manager</strong> or <strong>Administrator</strong> to create tenders.</span>
               </div>
-            ) : user.role === 'VENDOR' ? (
+            ) : !['SUPER_ADMIN', 'ORG_ADMIN', 'TENDER_MANAGER'].includes(user?.role) ? (
               <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <AlertCircle size={16} />
-                <span>Your account role is <strong>VENDOR</strong>. Vendors can only submit bids. To create tenders, please sign in with a <strong>Tender Manager</strong> or <strong>Admin</strong> account.</span>
+                <span>Your current account role is <strong>{user?.role || 'User'}</strong>. To publish tenders, please sign in with a <strong>Tender Manager</strong> or <strong>Administrator</strong> account.</span>
               </div>
             ) : null}
 
