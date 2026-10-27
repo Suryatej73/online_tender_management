@@ -245,31 +245,68 @@ class RegisterView(APIView):
     def post(self, request):
         try:
             data = get_request_data(request)
-            serializer = RegisterSerializer(data=data)
-            if serializer.is_valid():
-                user = serializer.save()
-                user.is_email_verified = False
-                user.status = UserStatus.PENDING_VERIFICATION
-                user.save(update_fields=['is_email_verified', 'status', 'updated_at'])
+            email = (data.get('email') or '').strip().lower()
+            password = data.get('password') or ''
+            password_confirm = data.get('password_confirm') or ''
 
-                otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.SIGNUP, user)
-                log_activity(user, "User Registration (Pending OTP Verification)", resource="Authentication", request=request)
+            if not email:
+                return Response({"error": "Email address is required.", "email": ["Email address is required."]}, status=status.HTTP_400_BAD_REQUEST)
 
+            if not password:
+                return Response({"error": "Password is required.", "password": ["Password is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
+            if password_confirm and password != password_confirm:
+                return Response({"error": "Passwords do not match.", "password_confirm": ["Passwords do not match."]}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Pre-check email existence to prevent database unique constraint collisions
+            if User.objects.filter(email__iexact=email).exists():
                 return Response({
-                    "message": f"User registered successfully! OTP verification code sent to {masked_email}. (Demo Code: {otp_code})",
-                    "otp_required": True,
-                    "purpose": OTPPurpose.SIGNUP,
-                    "temp_token": str(otp_obj.temp_token),
-                    "masked_email": masked_email,
-                    "demo_otp_hint": otp_code,
-                    "user": UserSerializer(user).data
-                }, status=status.HTTP_201_CREATED)
+                    "error": "An account with this email address already exists. Please log in instead.",
+                    "email": ["An account with this email address already exists."]
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            serializer = RegisterSerializer(data=data)
+            if not serializer.is_valid():
+                errors = serializer.errors
+                err_msg = next((v[0] if isinstance(v, list) else str(v) for v in errors.values()), "Registration validation failed.")
+                return Response({"error": err_msg, **errors}, status=status.HTTP_400_BAD_REQUEST)
+
+            user = serializer.save()
+            user.is_email_verified = False
+            user.status = UserStatus.PENDING_VERIFICATION
+            user.save(update_fields=['is_email_verified', 'status', 'updated_at'])
+
+            otp_obj, masked_email, otp_code = OTPService.create_and_send_otp(user.email, OTPPurpose.SIGNUP, user)
+            log_activity(user, "User Registration (Pending OTP Verification)", resource="Authentication", request=request)
+
+            return Response({
+                "message": f"User registered successfully! OTP verification code sent to {masked_email}. (Demo Code: {otp_code})",
+                "otp_required": True,
+                "purpose": OTPPurpose.SIGNUP,
+                "temp_token": str(otp_obj.temp_token),
+                "masked_email": masked_email,
+                "demo_otp_hint": otp_code,
+                "user": UserSerializer(user).data
+            }, status=status.HTTP_201_CREATED)
+
         except Exception as e:
+            from django.db import IntegrityError
+            if isinstance(e, IntegrityError):
+                err_str = str(e)
+                if 'email' in err_str:
+                    return Response({
+                        "error": "An account with this email address already exists. Please log in instead.",
+                        "email": ["An account with this email address already exists."]
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": f"Registration conflict: {err_str}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if isinstance(e, ValidationError):
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
             if 'OperationalError' in type(e).__name__ or 'psycopg2' in str(type(e)):
                 return Response({"error": _format_db_error(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-            raise
+
+            return Response({"error": f"Registration failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginView(APIView):

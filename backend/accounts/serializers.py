@@ -9,6 +9,7 @@ except ImportError:
         def __init__(self, instance=None, data=None, many=False, **kwargs):
             self.instance = instance
             self._data = data or {}
+            self.errors = {}
             if instance is not None:
                 def item_to_dict(item):
                     if isinstance(item, dict): return item
@@ -27,7 +28,30 @@ except ImportError:
                 self.data = data or {}
 
         def is_valid(self):
-            return True
+            self.errors = {}
+            email = (self._data.get('email') or '').strip().lower()
+            password = self._data.get('password') or ''
+            password_confirm = self._data.get('password_confirm')
+
+            # Validation for registration / auth forms
+            if 'email' in self._data and not email:
+                self.errors['email'] = ['Email address is required.']
+
+            if 'password' in self._data and not password:
+                self.errors['password'] = ['Password is required.']
+
+            if password_confirm is not None and password != password_confirm:
+                self.errors['password_confirm'] = ['Passwords do not match.']
+
+            if email and password_confirm is not None:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                # Check for existing email only during registration
+                if User.objects.filter(email__iexact=email).exists():
+                    self.errors['email'] = ['An account with this email address already exists.']
+                    self.errors['error'] = 'An account with this email address already exists. Please log in.'
+
+            return len(self.errors) == 0
 
         @property
         def validated_data(self):
@@ -38,7 +62,7 @@ except ImportError:
                 return self.instance
             from django.contrib.auth import get_user_model
             User = get_user_model()
-            email = self._data.get('email', 'user@example.com')
+            email = (self._data.get('email') or 'user@example.com').strip().lower()
             username = email.split('@')[0]
             count = User.objects.filter(username=username).count()
             if count > 0:
@@ -208,8 +232,14 @@ class RegisterSerializer(serializers.ModelSerializer):
             'role', 'organization_name', 'phone_number'
         ]
 
+    def validate_email(self, value):
+        value = value.strip().lower()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with this email address already exists. Please log in.")
+        return value
+
     def validate(self, attrs):
-        if attrs['password'] != attrs['password_confirm']:
+        if attrs.get('password') != attrs.get('password_confirm'):
             raise serializers.ValidationError({"password": "Passwords do not match."})
         return attrs
 
