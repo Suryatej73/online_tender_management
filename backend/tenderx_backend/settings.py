@@ -169,7 +169,11 @@ elif DATABASE_URL:
     if 'OPTIONS' not in db_config:
         db_config['OPTIONS'] = {}
     db_config['OPTIONS'].setdefault('sslmode', 'require')
-    db_config['OPTIONS'].setdefault('connect_timeout', 10)
+    db_config['OPTIONS'].setdefault('connect_timeout', 15)
+    db_config['OPTIONS'].setdefault('keepalives', 1)
+    db_config['OPTIONS'].setdefault('keepalives_idle', 10)
+    db_config['OPTIONS'].setdefault('keepalives_interval', 2)
+    db_config['OPTIONS'].setdefault('keepalives_count', 5)
     DATABASES = {'default': db_config}
 else:
     try:
