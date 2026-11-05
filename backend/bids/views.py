@@ -204,11 +204,21 @@ class BidListCreateView(APIView):
         vendor = None
         if user.role == UserRole.VENDOR:
             try:
-                from vendors.models import Vendor
-                vendor = Vendor.objects.get(user=user, is_deleted=False)
-            except Vendor.DoesNotExist:
-                return Response({"success": False, "message": "Vendor profile not found."},
-                              status=status.HTTP_404_NOT_FOUND)
+                from vendors.models import Vendor, VendorStatus
+                vendor = Vendor.objects.filter(user=user, is_deleted=False).first()
+                if not vendor:
+                    company = getattr(user, 'organization_name', None) or getattr(user, 'full_name', None) or (user.email.split('@')[0] if user.email else "Vendor")
+                    reg_num = f"VND-{uuid.uuid4().hex[:8].upper()}"
+                    vendor = Vendor.objects.create(
+                        user=user,
+                        company_name=company,
+                        registration_number=reg_num,
+                        email=user.email or f"vendor_{uuid.uuid4().hex[:6]}@tenderx.io",
+                        status=VendorStatus.VERIFIED,
+                    )
+            except Exception as e:
+                return Response({"success": False, "message": f"Could not load or provision vendor profile: {str(e)}"},
+                              status=status.HTTP_400_BAD_REQUEST)
         elif user.role in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]:
             vendor_id = data.get('vendor_id')
             if vendor_id:

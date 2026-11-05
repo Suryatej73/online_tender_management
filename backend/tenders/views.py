@@ -142,7 +142,22 @@ class TenderListCreateView(APIView):
             )
 
         if user_status:
-            queryset = queryset.filter(status=user_status)
+            if user_status.upper() == 'OPEN':
+                queryset = queryset.filter(status__in=[TenderStatus.PUBLISHED, TenderStatus.ACTIVE])
+            elif ',' in user_status:
+                statuses = [s.strip().upper() for s in user_status.split(',') if s.strip()]
+                queryset = queryset.filter(status__in=statuses)
+            else:
+                queryset = queryset.filter(status__iexact=user_status)
+        else:
+            # If user is a bidder / vendor or unauthenticated, exclude internal draft tenders
+            is_internal_staff = (
+                request.user and 
+                request.user.is_authenticated and 
+                getattr(request.user, 'role', None) in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.TENDER_MANAGER, UserRole.AUDITOR]
+            )
+            if not is_internal_staff:
+                queryset = queryset.exclude(status=TenderStatus.DRAFT)
         if category_id:
             queryset = queryset.filter(category_id=category_id)
         if org_id:

@@ -47,11 +47,11 @@ function formatCurrency(amount, currency = 'INR') {
   }
 }
 
-export default function BidManagementDashboard() {
+export default function BidManagementDashboard({ initialTab, initialTenderId } = {}) {
   const { user, isVendor, isEvaluator } = useAuth();
-  const [view, setView] = useState('dashboard'); // dashboard, detail, wizard, opening
+  const [view, setView] = useState(initialTab || 'dashboard'); // dashboard, detail, wizard, opening
   const [selectedBidId, setSelectedBidId] = useState(null);
-  const [selectedTenderId, setSelectedTenderId] = useState(null);
+  const [selectedTenderId, setSelectedTenderId] = useState(initialTenderId || null);
   const [dashboard, setDashboard] = useState(null);
   const [bids, setBids] = useState([]);
   const [pagination, setPagination] = useState({});
@@ -81,7 +81,7 @@ export default function BidManagementDashboard() {
 
   const loadTenders = async () => {
     try {
-      const res = await tendersApi.getTenders({ status: 'ACTIVE', limit: 50 });
+      const res = await tendersApi.getTenders({ status: 'OPEN', limit: 50 });
       setTenders(res.data || []);
       setCreateModalOpen(true);
     } catch (err) {
@@ -91,13 +91,23 @@ export default function BidManagementDashboard() {
 
   const handleCreateBid = async (tenderId) => {
     try {
-      await bidsApi.createBid(tenderId);
+      const res = await bidsApi.createBid(tenderId);
       setCreateModalOpen(false);
-      loadDashboard();
+      await loadDashboard();
+      if (res?.data?.id) {
+        setSelectedBidId(res.data.id);
+        setView('detail');
+      }
     } catch (err) {
       alert(err.message || 'Failed to create bid');
     }
   };
+
+  useEffect(() => {
+    if (initialTenderId) {
+      handleCreateBid(initialTenderId);
+    }
+  }, [initialTenderId]);
 
   const handleViewBid = (bidId) => {
     setSelectedBidId(bidId);
@@ -375,8 +385,13 @@ export default function BidManagementDashboard() {
                     onClick={() => handleCreateBid(t.id)}
                   >
                     <div>
-                      <div style={{ fontWeight: '700', fontSize: '0.9rem' }}>{t.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t.tender_number}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                        <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>{t.title}</span>
+                        <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: t.status === 'ACTIVE' ? 'rgba(16,185,129,0.2)' : 'rgba(59,130,246,0.2)', color: t.status === 'ACTIVE' ? '#10b981' : '#60a5fa', fontWeight: 'bold' }}>
+                          {t.status}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t.tender_number} • {t.effective_org_name || t.organization_name || 'Procuring Entity'}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--emerald)' }}>
@@ -389,8 +404,8 @@ export default function BidManagementDashboard() {
                   </motion.div>
                 ))}
                 {tenders.length === 0 && (
-                  <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>
-                    No active tenders available for bidding.
+                  <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1.5rem' }}>
+                    No published or active tenders available for bidding at this moment.
                   </p>
                 )}
               </div>

@@ -57,6 +57,8 @@ function TenderXApp() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
 
+  const [inspectTenderId, setInspectTenderId] = useState(null);
+  const [biddingTenderId, setBiddingTenderId] = useState(null);
   const [dashboard, setDashboard] = useState({ statistics: {}, recent_tenders: [], bidStats: {} });
   const [dashboardLoading, setDashboardLoading] = useState(true);
 
@@ -173,7 +175,12 @@ function TenderXApp() {
           {activeTab === 'dashboard' && (
             <PurityDashboardView
               dashboardData={dashboard}
-              onNavigateToTenders={() => setActiveTab('tenders')}
+              onNavigateToTenders={(tenderId) => {
+                if (tenderId) {
+                  setInspectTenderId(tenderId);
+                }
+                setActiveTab('tenders');
+              }}
               onNavigateToDocuments={() => setActiveTab('documents')}
             />
           )}
@@ -181,14 +188,22 @@ function TenderXApp() {
           {/* TAB 2: Tenders & BOQ Catalog */}
           {activeTab === 'tenders' && (
             <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
-              <TenderManagementDashboard />
+              <TenderManagementDashboard 
+                initialSelectedTenderId={inspectTenderId}
+                onNavigateToBid={(tenderId) => {
+                  setBiddingTenderId(tenderId);
+                  setActiveTab('bids');
+                }}
+              />
             </div>
           )}
 
           {/* TAB 3: Bidding & Submissions */}
           {activeTab === 'bids' && (
             <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
-              <BidManagementDashboard />
+              <BidManagementDashboard 
+                initialTenderId={biddingTenderId}
+              />
             </div>
           )}
 

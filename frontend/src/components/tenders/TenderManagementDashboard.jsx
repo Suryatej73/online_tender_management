@@ -106,7 +106,7 @@ import {
 import { tendersApi } from '../../api/tendersApi';
 import { useAuth } from '../../context/AuthContext';
 
-export default function TenderManagementDashboard() {
+export default function TenderManagementDashboard({ initialSelectedTenderId, onNavigateToBid } = {}) {
   const { user } = useAuth();
   const [tenders, setTenders] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_REAL_WORLD_CATEGORIES);
@@ -133,6 +133,7 @@ export default function TenderManagementDashboard() {
 
   // Modals & Drawers State
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [selectedTender, setSelectedTender] = useState(null);
   const [amendmentModalOpen, setAmendmentModalOpen] = useState(false);
@@ -148,6 +149,20 @@ export default function TenderManagementDashboard() {
     eligibility_criteria: '',
     technical_requirements: '',
     financial_requirements: ''
+  });
+
+  // Edit Tender Form Data
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    category: '',
+    budget: '',
+    submission_deadline: '',
+    opening_date: '',
+    eligibility_criteria: '',
+    technical_requirements: '',
+    financial_requirements: '',
+    version: 1
   });
 
   // Amendment Form Data
@@ -265,6 +280,68 @@ export default function TenderManagementDashboard() {
       loadData();
     } catch (err) {
       setError(err.message || 'Failed to issue amendment.');
+    }
+  };
+
+  useEffect(() => {
+    if (initialSelectedTenderId) {
+      tendersApi.getTenderDetail(initialSelectedTenderId).then(res => {
+        if (res?.data) {
+          setSelectedTender(res.data);
+          setTimeout(() => {
+            document.getElementById('tender-inspector-drawer')?.scrollIntoView({ behavior: 'smooth' });
+          }, 150);
+        }
+      }).catch(err => console.error('Failed to load initial tender:', err));
+    }
+  }, [initialSelectedTenderId]);
+
+  const handleOpenEditModal = () => {
+    if (!selectedTender) return;
+    setEditFormData({
+      title: selectedTender.title || '',
+      description: selectedTender.description || '',
+      category: selectedTender.category?.id || selectedTender.category || '',
+      budget: selectedTender.budget || '',
+      submission_deadline: selectedTender.submission_deadline ? selectedTender.submission_deadline.substring(0, 16) : '',
+      opening_date: selectedTender.opening_date ? selectedTender.opening_date.substring(0, 16) : '',
+      eligibility_criteria: selectedTender.eligibility_criteria || '',
+      technical_requirements: selectedTender.technical_requirements || '',
+      financial_requirements: selectedTender.financial_requirements || '',
+      version: selectedTender.version
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleUpdateTender = async (e) => {
+    e.preventDefault();
+    if (!selectedTender) return;
+    setError('');
+    try {
+      const res = await tendersApi.updateTender(selectedTender.id, editFormData);
+      setSuccessMsg(res.message || 'Tender updated successfully');
+      setEditModalOpen(false);
+      const detailRes = await tendersApi.getTenderDetail(selectedTender.id);
+      setSelectedTender(detailRes.data);
+      loadData();
+    } catch (err) {
+      setError(err.message || 'Failed to update tender.');
+    }
+  };
+
+  const handleDeleteTender = async () => {
+    if (!selectedTender) return;
+    if (!window.confirm(`Are you sure you want to permanently delete draft tender ${selectedTender.tender_number}?`)) {
+      return;
+    }
+    setError('');
+    try {
+      await tendersApi.deleteTender(selectedTender.id);
+      setSuccessMsg('Draft tender deleted successfully');
+      setSelectedTender(null);
+      loadData();
+    } catch (err) {
+      setError(err.message || 'Failed to delete tender.');
     }
   };
 
@@ -413,6 +490,9 @@ export default function TenderManagementDashboard() {
                           onClick={async () => {
                             const res = await tendersApi.getTenderDetail(t.id);
                             setSelectedTender(res.data);
+                            setTimeout(() => {
+                              document.getElementById('tender-inspector-drawer')?.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
                           }} 
                           className="btn-secondary" 
                           style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
@@ -431,7 +511,7 @@ export default function TenderManagementDashboard() {
 
       {/* Selected Tender Drawer / Inspector */}
       {selectedTender && (
-        <div className="glass-card" style={{ border: '1px solid var(--border-glow)', padding: '1.5rem' }}>
+        <div id="tender-inspector-drawer" className="glass-card" style={{ border: '1px solid var(--border-glow)', padding: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-muted)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
@@ -454,8 +534,29 @@ export default function TenderManagementDashboard() {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
               {selectedTender.status === 'DRAFT' && (
-                <button onClick={() => handleTransition(selectedTender.id, 'PUBLISHED', 'Published by Tender Manager')} className="btn-action">
-                  <Send size={15} /> Publish Tender
+                <>
+                  <button onClick={() => handleTransition(selectedTender.id, 'PUBLISHED', 'Published by Tender Manager')} className="btn-action">
+                    <Send size={15} /> Publish Tender
+                  </button>
+                  <button onClick={handleOpenEditModal} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Edit size={14} /> Edit Draft
+                  </button>
+                  <button onClick={handleDeleteTender} style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.5rem 0.85rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Trash2 size={14} /> Delete Draft
+                  </button>
+                </>
+              )}
+              {['PUBLISHED', 'ACTIVE'].includes(selectedTender.status) && (
+                <button 
+                  onClick={() => {
+                    if (onNavigateToBid) {
+                      onNavigateToBid(selectedTender.id);
+                    }
+                  }} 
+                  className="btn-action" 
+                  style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 4px 14px rgba(16,185,129,0.3)' }}
+                >
+                  <Award size={15} /> Submit Bid / Proposal
                 </button>
               )}
               {selectedTender.status === 'PUBLISHED' && (
@@ -640,6 +741,68 @@ export default function TenderManagementDashboard() {
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Draft Tender Modal */}
+      {editModalOpen && (
+        <div className="modal-overlay" onClick={() => setEditModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-muted)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '800' }}>Edit Draft Tender</h3>
+                <span className="code-font" style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>{selectedTender?.tender_number}</span>
+              </div>
+              <button onClick={() => setEditModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+
+            <form onSubmit={handleUpdateTender} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label className="input-label">Tender Title</label>
+                <input type="text" className="input-control" value={editFormData.title} onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })} required />
+              </div>
+
+              <div className="grid-2">
+                <div>
+                  <label className="input-label">Tender Category</label>
+                  <select className="input-control" value={editFormData.category} onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}>
+                    <option value="">Select Category</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="input-label">Budget ($ USD)</label>
+                  <input type="number" step="0.01" className="input-control" value={editFormData.budget} onChange={(e) => setEditFormData({ ...editFormData, budget: e.target.value })} required />
+                </div>
+              </div>
+
+              <div className="grid-2">
+                <div>
+                  <label className="input-label">Submission Deadline</label>
+                  <input type="datetime-local" className="input-control" value={editFormData.submission_deadline} onChange={(e) => setEditFormData({ ...editFormData, submission_deadline: e.target.value })} required />
+                </div>
+                <div>
+                  <label className="input-label">Bid Opening Date</label>
+                  <input type="datetime-local" className="input-control" value={editFormData.opening_date} onChange={(e) => setEditFormData({ ...editFormData, opening_date: e.target.value })} />
+                </div>
+              </div>
+
+              <div>
+                <label className="input-label">Detailed Description</label>
+                <textarea className="input-control" rows={3} value={editFormData.description} onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="input-label">Eligibility Criteria</label>
+                <textarea className="input-control" rows={2} value={editFormData.eligibility_criteria} onChange={(e) => setEditFormData({ ...editFormData, eligibility_criteria: e.target.value })} />
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button type="button" className="btn-secondary" onClick={() => setEditModalOpen(false)}>Cancel</button>
+                <button type="submit" className="btn-action"><Save size={16} /> Save Changes</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

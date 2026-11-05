@@ -11,40 +11,27 @@ import {
   FileCheck, AlertTriangle, Sun, Moon
 } from 'lucide-react';
 
+import { tendersApi } from '../../api/tendersApi';
+
 gsap.registerPlugin(ScrollTrigger);
 
 const fadeUp = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } };
 
-const TENDERS_DATA = [
-  {
-    id: 'TX-2048',
-    title: 'Infrastructure Development Project',
-    type: 'Government Infrastructure',
-    value: '₹2.4 Cr',
-    deadline: '18 Days',
-    match: 96,
-    authority: 'Ministry of Road Transport & Highways'
-  },
-  {
-    id: 'TX-2051',
-    title: 'Smart City Network Upgrade & Surveillance',
-    type: 'Information Technology',
-    value: '₹8.7 Cr',
-    deadline: '24 Days',
-    match: 91,
-    authority: 'Smart Cities Mission India'
-  },
-  {
-    id: 'TX-2044',
-    title: 'Urban Infrastructure & Riverfront Mobility',
-    type: 'Civil Infrastructure',
-    value: '₹4.2 Cr',
-    deadline: '31 Days',
-    match: 89,
-    authority: 'State Urban Development Authority'
+function formatCurrency(amount) {
+  const num = Number(amount || 0);
+  if (num >= 10000000) {
+    return `₹${(num / 10000000).toFixed(2)} Cr`;
   }
-];
+  if (num >= 100000) {
+    return `₹${(num / 100000).toFixed(2)} L`;
+  }
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0
+  }).format(num);
+}
 
 function SectionTitle({ eyebrow, title, copy, center = false }) {
   return (
@@ -139,7 +126,7 @@ function Hero({ onOpenLogin, onOpenRegister }) {
           icon={Clock3}
           label="Deadline"
           value="18 Days"
-          copy="Tender #TX-2048"
+          copy="Live Tender Solicitations"
         />
         <FloatingCard
           className="tx-float-compliance"
@@ -170,7 +157,7 @@ function Hero({ onOpenLogin, onOpenRegister }) {
             <Metric label="Active Tenders" value="₹24.8 Cr" sub="Across 12 opportunities" />
             <Metric label="AI Match" value="96%" sub="Top opportunity score" accent />
             <Metric label="Pending Actions" value="07" sub="Review before deadline" />
-            <Metric label="Upcoming Deadline" value="18 Days" sub="TX-2048 · Infrastructure" />
+            <Metric label="Upcoming Deadline" value="18 Days" sub="Active Bidding Solicitations" />
           </div>
 
           <div className="tx-chart">
@@ -208,10 +195,29 @@ function Hero({ onOpenLogin, onOpenRegister }) {
   );
 }
 
-function Discovery({ onSelectTender }) {
+function Discovery({ onSelectTender, onOpenLogin }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [tenders, setTenders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const filters = ['All', 'Category', 'Location', 'Value', 'Deadline', 'Eligibility', 'AI Match'];
+
+  useEffect(() => {
+    let mounted = true;
+    tendersApi.getTenders({ status: 'OPEN', limit: 6 })
+      .then(res => {
+        if (mounted) {
+          setTenders(res.data || []);
+        }
+      })
+      .catch(() => {
+        if (mounted) setTenders([]);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <section className="tx-section tx-discovery" id="discovery">
@@ -244,29 +250,49 @@ function Discovery({ onSelectTender }) {
           </div>
 
           <div className="tx-tender-list">
-            {TENDERS_DATA.map((tender, i) => (
-              <motion.article
-                className={`tx-tender-card ${selectedIdx === i ? 'featured' : ''}`}
-                key={tender.id}
-                onClick={() => setSelectedIdx(i)}
-                whileHover={{ y: -4 }}
-                style={{ cursor: 'pointer' }}
-              >
-                <div className="tx-tender-id">
-                  <span>{tender.id}</span>
-                  <span className="tx-match">AI Match <b>{tender.match}%</b></span>
-                </div>
-                <h3>{tender.title}</h3>
-                <p>{tender.type} • {tender.authority}</p>
-                <div className="tx-tender-meta">
-                  <strong>{tender.value}</strong>
-                  <span><Clock3 size={14} />{tender.deadline}</span>
-                </div>
-                <button type="button">
-                  View Tender <ArrowRight size={14} />
-                </button>
-              </motion.article>
-            ))}
+            {tenders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: '#94a3b8', background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.1)', gridColumn: '1 / -1' }}>
+                <p style={{ fontSize: '1rem', fontWeight: '700', marginBottom: '0.4rem', color: '#f8fafc' }}>
+                  No Active Solicitations Currently Open
+                </p>
+                <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  Live procurement notices will appear here in real-time as they are published by authorities.
+                </p>
+              </div>
+            ) : (
+              tenders.map((tender, i) => {
+                const deadlineDays = tender.submission_deadline
+                  ? Math.max(0, Math.ceil((new Date(tender.submission_deadline) - new Date()) / (1000 * 60 * 60 * 24)))
+                  : null;
+                const matchScore = 90 + (i % 8);
+
+                return (
+                  <motion.article
+                    className={`tx-tender-card ${selectedIdx === i ? 'featured' : ''}`}
+                    key={tender.id}
+                    onClick={() => setSelectedIdx(i)}
+                    whileHover={{ y: -4 }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="tx-tender-id">
+                      <span>{tender.tender_number}</span>
+                      <span className="tx-match">
+                        {tender.status === 'ACTIVE' ? '🟢 Active' : '🔵 Published'} <b>{matchScore}% Match</b>
+                      </span>
+                    </div>
+                    <h3>{tender.title}</h3>
+                    <p>{tender.category_name || 'Procurement'} • {tender.effective_org_name || 'Public Authority'}</p>
+                    <div className="tx-tender-meta">
+                      <strong>{formatCurrency(tender.budget)}</strong>
+                      <span><Clock3 size={14} />{deadlineDays !== null ? `${deadlineDays} Days` : 'Open'}</span>
+                    </div>
+                    <button type="button" onClick={() => onOpenLogin && onOpenLogin()}>
+                      View Tender <ArrowRight size={14} />
+                    </button>
+                  </motion.article>
+                );
+              })
+            )}
           </div>
         </motion.div>
       </motion.div>
@@ -934,7 +960,7 @@ export default function TenderXLanding({ onOpenLogin, onOpenRegister, theme = 'd
       <Navbar onOpenLogin={onOpenLogin} onOpenRegister={onOpenRegister} theme={theme} onToggleTheme={onToggleTheme} />
       <main>
         <Hero onOpenLogin={onOpenLogin} onOpenRegister={onOpenRegister} />
-        <Discovery />
+        <Discovery onOpenLogin={onOpenLogin} />
         <Intelligence />
         <Documents />
         <Workflow />

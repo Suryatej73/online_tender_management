@@ -10,22 +10,65 @@ except ImportError:
     class DummyField:
         def __init__(self, *args, **kwargs): pass
     class DummySerializer:
-        def __init__(self, instance=None, data=None, many=False, **kwargs):
+        def __init__(self, instance=None, data=None, many=False, partial=False, **kwargs):
             self.instance = instance
             self._data = dict(data or {})
             self._kwargs = kwargs
             self.many = many
+            self.partial = partial
             self._errors = {}
             if instance is not None:
                 if many or (isinstance(instance, (list, tuple)) or (hasattr(instance, '__iter__') and not hasattr(instance, 'pk'))):
-                    self.data = [
-                        {'id': str(getattr(u, 'id', ''))}
-                        for u in instance
-                    ]
+                    self.data = [self._serialize_item(u) for u in instance]
                 else:
-                    self.data = {'id': str(getattr(instance, 'id', ''))}
+                    self.data = self._serialize_item(instance)
             else:
                 self.data = dict(data or {})
+
+        def _serialize_item(self, item):
+            if item is None:
+                return {}
+            if isinstance(item, dict):
+                return item
+
+            res = {'id': str(getattr(item, 'id', ''))}
+            fields = getattr(getattr(self, 'Meta', None), 'fields', None)
+
+            if hasattr(item, '_meta'):
+                for f in item._meta.get_fields():
+                    if getattr(f, 'is_relation', False):
+                        continue
+                    val = getattr(item, f.name, None)
+                    if val is not None:
+                        if hasattr(val, 'isoformat'):
+                            val = val.isoformat()
+                        elif hasattr(val, 'hex'):
+                            val = str(val)
+                        elif hasattr(val, '__float__') and not isinstance(val, bool):
+                            try:
+                                val = float(val)
+                            except Exception:
+                                val = str(val)
+                    res[f.name] = val
+            else:
+                for k in dir(item):
+                    if not k.startswith('_'):
+                        v = getattr(item, k, None)
+                        if not callable(v):
+                            res[k] = v
+
+            # SerializerMethodField methods
+            for attr in dir(self):
+                if attr.startswith('get_') and callable(getattr(self, attr)):
+                    field_name = attr[4:]
+                    try:
+                        res[field_name] = getattr(self, attr)(item)
+                    except Exception:
+                        pass
+
+            if fields and fields != '__all__':
+                return {k: res.get(k) for k in fields if k in res or hasattr(item, k)}
+            return res
 
         def is_valid(self, raise_exception=False):
             self._errors = {}

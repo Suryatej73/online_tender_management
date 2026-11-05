@@ -386,7 +386,7 @@ export default function PurityDashboardView({
             <div>
               <h4 className="font-extrabold text-white text-sm">Procurement Volume & Spend Velocity</h4>
               <p className="text-xs text-slate-400 mt-0.5">
-                Total Allocated Budget: <span className="text-orange-400 font-mono font-bold">{formatCurrency(stats.total_budget || awardedValue * 1.5 || 25000000)}</span>
+                Total Allocated Budget: <span className="text-orange-400 font-mono font-bold">{formatCurrency(stats.total_budget || 0)}</span>
               </p>
             </div>
             <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
@@ -510,7 +510,7 @@ export default function PurityDashboardView({
                               {tender.title}
                             </p>
                             <span className="text-[10px] text-slate-400 font-mono block">
-                              {tender.tender_number || `TND-2026-${String(idx + 1).padStart(4, '0')}`}
+                              {tender.tender_number || 'N/A'}
                             </span>
                           </div>
                         </div>
@@ -536,7 +536,7 @@ export default function PurityDashboardView({
                       </td>
                       <td className="py-3.5 text-right pr-2">
                         <button
-                          onClick={onNavigateToTenders}
+                          onClick={() => onNavigateToTenders ? onNavigateToTenders(tender.id) : null}
                           className="inline-flex items-center gap-1 text-[11px] font-bold text-orange-400 hover:text-orange-300 transition"
                         >
                           <Eye className="w-3 h-3" />
@@ -545,6 +545,13 @@ export default function PurityDashboardView({
                       </td>
                     </tr>
                   ))}
+                  {recentTenders.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400 text-xs">
+                        No tenders created yet. Click "Manage Tenders" or "Create Draft Tender" to get started.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
