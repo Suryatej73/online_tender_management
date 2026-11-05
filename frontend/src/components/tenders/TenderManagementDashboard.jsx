@@ -1,4 +1,82 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+
+const DEFAULT_REAL_WORLD_CATEGORIES = [
+  {
+    id: 'civil-works',
+    name: 'Civil Works & Infrastructure',
+    subcategories: [
+      { id: 'roads-highways', name: 'Roads, Highways & Bridges' },
+      { id: 'building-construction', name: 'Building Construction & Renovation' },
+      { id: 'water-supply', name: 'Water Supply & Drainage Systems' },
+      { id: 'urban-planning', name: 'Urban Planning & Public Works' },
+    ]
+  },
+  {
+    id: 'it-software',
+    name: 'Information Technology & Software',
+    subcategories: [
+      { id: 'cloud-platforms', name: 'Enterprise Software & Cloud Platforms' },
+      { id: 'hardware-datacenter', name: 'Hardware Supply & Data Center Equipment' },
+      { id: 'cybersecurity', name: 'Cybersecurity & Identity Management' },
+      { id: 'telecom-fiber', name: 'Telecommunications & Fiber Networks' },
+    ]
+  },
+  {
+    id: 'healthcare-medical',
+    name: 'Healthcare & Medical Equipment',
+    subcategories: [
+      { id: 'diagnostic-machinery', name: 'Diagnostic & Imaging Machinery' },
+      { id: 'pharma-vaccines', name: 'Pharmaceuticals & Clinical Vaccines' },
+      { id: 'hospital-furniture', name: 'Hospital Furniture & Sterilization' },
+    ]
+  },
+  {
+    id: 'electrical-energy',
+    name: 'Electrical & Energy Systems',
+    subcategories: [
+      { id: 'solar-renewable', name: 'Solar & Renewable Power Stations' },
+      { id: 'transmission-grid', name: 'Transmission Lines & Substations' },
+      { id: 'backup-generators', name: 'Industrial Backup Generators & UPS' },
+    ]
+  },
+  {
+    id: 'consulting-services',
+    name: 'Consulting & Professional Services',
+    subcategories: [
+      { id: 'arch-engineering', name: 'Architectural & Structural Engineering' },
+      { id: 'financial-audit', name: 'Financial Audit & Spend Assessment' },
+      { id: 'environmental-studies', name: 'Environmental Impact Studies' },
+    ]
+  },
+  {
+    id: 'facilities-maintenance',
+    name: 'Facilities Management & Maintenance',
+    subcategories: [
+      { id: 'hvac-mechanical', name: 'HVAC, Elevator & Mechanical Maintenance' },
+      { id: 'corporate-security', name: 'Corporate Physical Security & CCTV' },
+      { id: 'waste-management', name: 'Industrial Janitorial & Waste Management' },
+    ]
+  },
+  {
+    id: 'industrial-goods',
+    name: 'Industrial Goods & Raw Materials',
+    subcategories: [
+      { id: 'heavy-machinery', name: 'Heavy Machinery & Fleet Vehicles' },
+      { id: 'steel-materials', name: 'Structural Steel & Construction Materials' },
+      { id: 'office-supplies', name: 'Office Furniture & Technical Stationery' },
+    ]
+  },
+  {
+    id: 'transport-logistics',
+    name: 'Transportation & Logistics',
+    subcategories: [
+      { id: 'freight-customs', name: 'Freight Forwarding & Customs Clearance' },
+      { id: 'fleet-leasing', name: 'Fleet Leasing & Operational Transport' },
+      { id: 'cold-storage', name: 'Cold Chain & Temperature-Controlled Storage' },
+    ]
+  }
+];
+
 import { 
   FileText, 
   Plus, 
@@ -31,7 +109,14 @@ import { useAuth } from '../../context/AuthContext';
 export default function TenderManagementDashboard() {
   const { user } = useAuth();
   const [tenders, setTenders] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState(DEFAULT_REAL_WORLD_CATEGORIES);
+
+  const displayCategories = useMemo(() => {
+    if (categories && categories.length > 0) {
+      return categories;
+    }
+    return DEFAULT_REAL_WORLD_CATEGORIES;
+  }, [categories]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -87,7 +172,8 @@ export default function TenderManagementDashboard() {
       ]);
 
       setTenders(tendersRes.data || []);
-      setCategories(catsRes.data || []);
+      const loadedCats = catsRes?.data && catsRes.data.length > 0 ? catsRes.data : DEFAULT_REAL_WORLD_CATEGORIES;
+      setCategories(loadedCats);
       setTemplates(tmplsRes.data || []);
     } catch (err) {
       setError(err.message || 'Failed to load tender management data.');
@@ -266,11 +352,11 @@ export default function TenderManagementDashboard() {
             value={filters.category} 
             onChange={(e) => setFilters({ ...filters, category: e.target.value })}
             className="input-control" 
-            style={{ width: '200px' }}
+            style={{ width: '220px' }}
           >
             <option value="">All Categories</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+            {displayCategories.map(c => (
+              <option key={c.id || c.name} value={c.id || c.name}>{c.name}</option>
             ))}
           </select>
 
@@ -468,10 +554,33 @@ export default function TenderManagementDashboard() {
 
               <div className="grid-2">
                 <div>
-                  <label className="input-label">Tender Category</label>
-                  <select className="input-control" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
-                    <option value="">Select Category</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  <label className="input-label">Tender Category *</label>
+                  <select 
+                    className="input-control" 
+                    value={formData.category} 
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    required
+                  >
+                    <option value="">-- Select Procurement Category --</option>
+                    {displayCategories.map(c => {
+                      if (c.subcategories && c.subcategories.length > 0) {
+                        return (
+                          <optgroup key={c.id || c.name} label={c.name}>
+                            <option value={c.id || c.name}>{c.name} (General)</option>
+                            {c.subcategories.map(sub => (
+                              <option key={sub.id || sub.name} value={sub.id || sub.name}>
+                                &nbsp;&nbsp;↳ {sub.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      }
+                      return (
+                        <option key={c.id || c.name} value={c.id || c.name}>
+                          {c.name}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div>
