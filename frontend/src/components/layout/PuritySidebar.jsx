@@ -1,13 +1,11 @@
 import React from 'react';
 import {
   LayoutDashboard, FileText, Gavel, Building2, FileCheck,
-  Award, User, Users, ShieldCheck, LogOut, HelpCircle,
-  Sparkles, ExternalLink, ChevronRight, Server, Sun, Moon
+  Award, HelpCircle, ExternalLink
 } from 'lucide-react';
 
-export default function PuritySidebar({ activeTab, onTabChange, currentUser, onLogout, onExploreClick, theme = 'dark', onToggleTheme }) {
+export default function PuritySidebar({ activeTab, onTabChange, currentUser, onExploreClick }) {
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
-  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ORG_ADMIN';
 
   const navItems = [
     { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
@@ -17,15 +15,6 @@ export default function PuritySidebar({ activeTab, onTabChange, currentUser, onL
     { id: 'vendors', label: 'Vendor 360', icon: Building2 },
     { id: 'documents', label: 'Documents', icon: FileCheck },
     { id: 'evaluations', label: isSuperAdmin ? 'Evaluator Oversight' : 'Evaluations & Awards', icon: Award },
-  ];
-
-  const accountItems = [
-    { id: 'profile', label: 'Security & Profile', icon: User },
-    ...(isAdmin ? [
-      { id: 'admin_governance', label: 'Admin Governance', icon: ShieldCheck },
-      { id: 'users', label: 'User Directory', icon: Users },
-      { id: 'rbac', label: 'RBAC Matrix', icon: ShieldCheck },
-    ] : []),
   ];
 
   return (
@@ -76,64 +65,6 @@ export default function PuritySidebar({ activeTab, onTabChange, currentUser, onL
               </button>
             );
           })}
-        </div>
-
-        {/* Section: Account Pages */}
-        <div className="mt-7 mb-2 px-3">
-          <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
-            Management & System
-          </p>
-        </div>
-
-        <div className="space-y-1">
-          {accountItems.map(item => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onTabChange(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all group ${
-                  isActive
-                    ? 'bg-orange-500/15 text-white border border-orange-500/30 shadow-sm shadow-orange-500/10'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                    isActive
-                      ? 'bg-orange-500 text-white shadow-md shadow-orange-500/30'
-                      : 'bg-white/5 text-slate-400 group-hover:text-white group-hover:bg-white/10'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                </div>
-                <span className="truncate">{item.label}</span>
-              </button>
-            );
-          })}
-
-          {onToggleTheme && (
-            <button
-              onClick={onToggleTheme}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-white/5 transition-all group"
-            >
-              <div className="w-8 h-8 rounded-lg bg-white/5 text-orange-400 group-hover:bg-white/10 flex items-center justify-center transition-all">
-                {theme === 'light' ? <Moon className="w-4 h-4 text-indigo-500" /> : <Sun className="w-4 h-4 text-orange-400" />}
-              </div>
-              <span className="truncate">{theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}</span>
-            </button>
-          )}
-
-          <button
-            onClick={onLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all mt-2"
-          >
-            <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center">
-              <LogOut className="w-4 h-4" />
-            </div>
-            <span>Sign Out</span>
-          </button>
         </div>
       </div>
 

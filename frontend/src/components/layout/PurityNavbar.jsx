@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Search, Bell, Settings, User as UserIcon, LogOut,
   ChevronRight, ExternalLink, Check, Sparkles, AlertTriangle, ShieldCheck,
-  Sun, Moon, Award, FileText, CheckCircle2
+  Sun, Moon, Award, FileText, CheckCircle2, Users, Sliders
 } from 'lucide-react';
 import { tendersApi } from '../../api/tendersApi';
 import { bidsApi } from '../../api/bidsApi';
@@ -30,10 +30,14 @@ export default function PurityNavbar({
   onToggleTheme
 }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const notifRef = useRef(null);
+  const settingsRef = useRef(null);
+
+  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ORG_ADMIN';
 
   // Load real notifications from backend state (zero dummy data)
   const loadNotifications = useCallback(async () => {
@@ -131,11 +135,14 @@ export default function PurityNavbar({
     return () => clearInterval(interval);
   }, [loadNotifications]);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(event) {
       if (notifRef.current && !notifRef.current.contains(event.target)) {
         setNotificationsOpen(false);
+      }
+      if (settingsRef.current && !settingsRef.current.contains(event.target)) {
+        setSettingsOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -175,6 +182,7 @@ export default function PurityNavbar({
       case 'vendors': return 'Vendor Management';
       case 'documents': return 'Documents';
       case 'evaluations': return 'Evaluations & Awards';
+      case 'admin_governance': return 'Admin Governance';
       case 'users': return 'User Directory';
       case 'rbac': return 'RBAC Permissions';
       case 'profile': return 'User Profile & Security';
@@ -201,9 +209,9 @@ export default function PurityNavbar({
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
         {/* Search Bar with Command Shortcut */}
-        <div className="relative hidden sm:block w-48 md:w-64">
+        <div className="relative hidden sm:block w-48 md:w-60">
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-white/40" />
           <input
             type="text"
@@ -214,28 +222,6 @@ export default function PurityNavbar({
             ⌘K
           </kbd>
         </div>
-
-        {/* Theme Mode Switcher */}
-        {onToggleTheme && (
-          <button
-            onClick={onToggleTheme}
-            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-            aria-label="Toggle color theme"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs font-semibold text-white/80 hover:text-orange-400 transition shadow-xs"
-          >
-            {theme === 'light' ? (
-              <>
-                <Moon className="w-3.5 h-3.5 text-indigo-500" />
-                <span className="hidden lg:inline">Dark Mode</span>
-              </>
-            ) : (
-              <>
-                <Sun className="w-3.5 h-3.5 text-orange-400" />
-                <span className="hidden lg:inline">Light Mode</span>
-              </>
-            )}
-          </button>
-        )}
 
         {/* Explore Mode Switcher */}
         <button
@@ -250,7 +236,10 @@ export default function PurityNavbar({
         {/* Notification Bell Dropdown (Real live backend events) */}
         <div className="relative" ref={notifRef}>
           <button
-            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            onClick={() => {
+              setNotificationsOpen(!notificationsOpen);
+              setSettingsOpen(false);
+            }}
             className="relative p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/70 hover:text-white transition shadow-xs"
             title="Procurement Notifications"
           >
@@ -338,10 +327,204 @@ export default function PurityNavbar({
           )}
         </div>
 
+        {/* Settings & System Management Dropdown */}
+        <div className="relative" ref={settingsRef}>
+          <button
+            onClick={() => {
+              setSettingsOpen(!settingsOpen);
+              setNotificationsOpen(false);
+            }}
+            className={`relative p-2 rounded-xl transition shadow-xs ${
+              settingsOpen
+                ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/70 hover:text-white'
+            }`}
+            title="System & Account Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+
+          {/* Settings Menu Flyout */}
+          {settingsOpen && (
+            <div className="absolute right-0 mt-2 w-80 sm:w-88 rounded-2xl bg-[#0d1117] border border-white/10 shadow-2xl p-4 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 duration-200 space-y-3">
+              {/* User Profile Summary */}
+              {currentUser && (
+                <div className="flex items-center gap-3 pb-3 border-b border-white/[0.08]">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center font-bold text-base shrink-0 shadow-inner">
+                    {currentUser.email ? currentUser.email.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-white truncate">
+                      {currentUser.full_name || currentUser.username || 'User'}
+                    </p>
+                    <p className="text-[10px] text-white/50 truncate">
+                      {currentUser.email}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                        {currentUser.role || 'Member'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation Items in Settings */}
+              <div className="space-y-1">
+                {/* 1. Security & Profile */}
+                <button
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    if (onTabChange) onTabChange('profile');
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition text-left group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
+                      <UserIcon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-white group-hover:text-orange-400 transition-colors">
+                        Security & Profile
+                      </p>
+                      <p className="text-[10px] text-white/40">
+                        Credentials, 2FA MFA, active sessions
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition" />
+                </button>
+
+                {/* 2. Theme Customization (Light / Dark Mode) */}
+                {onToggleTheme && (
+                  <button
+                    onClick={() => {
+                      onToggleTheme();
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition text-left group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                        {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-orange-400" />}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white group-hover:text-orange-400 transition-colors">
+                          Color Theme
+                        </p>
+                        <p className="text-[10px] text-white/40">
+                          {theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/10 uppercase font-semibold">
+                      {theme}
+                    </span>
+                  </button>
+                )}
+
+                {/* 3. Management & System Pages (for Admins) */}
+                {isAdmin && (
+                  <div className="pt-2 border-t border-white/[0.08] mt-2 space-y-1">
+                    <p className="px-2.5 py-1 text-[9px] font-mono font-bold uppercase tracking-wider text-slate-500">
+                      Management & System
+                    </p>
+
+                    <button
+                      onClick={() => {
+                        setSettingsOpen(false);
+                        if (onTabChange) onTabChange('admin_governance');
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition text-left group"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white group-hover:text-sky-400 transition-colors">
+                            Admin Governance
+                          </p>
+                          <p className="text-[10px] text-white/40">
+                            Enterprise policy & system control
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition" />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSettingsOpen(false);
+                        if (onTabChange) onTabChange('users');
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition text-left group"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">
+                            User Directory
+                          </p>
+                          <p className="text-[10px] text-white/40">
+                            Staff & bidder accounts
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition" />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSettingsOpen(false);
+                        if (onTabChange) onTabChange('rbac');
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition text-left group"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+                          <Sliders className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white group-hover:text-purple-400 transition-colors">
+                            RBAC Matrix
+                          </p>
+                          <p className="text-[10px] text-white/40">
+                            Permissions and role rules
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Sign Out Option */}
+              <div className="pt-2 border-t border-white/[0.08]">
+                <button
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    if (onLogout) onLogout();
+                  }}
+                  className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold transition group"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* User Profile Pill */}
         {currentUser ? (
           <button
-            onClick={() => onTabChange && onTabChange('profile')}
+            onClick={() => {
+              setSettingsOpen(!settingsOpen);
+              setNotificationsOpen(false);
+            }}
             className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 shadow-xs text-xs font-semibold text-white/90 transition text-left"
           >
             <div className="w-6 h-6 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center font-bold text-[11px]">

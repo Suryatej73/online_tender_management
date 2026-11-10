@@ -137,23 +137,6 @@ export default function PurityDashboardView({
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-400 border border-orange-500/30 shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
-                Live Command Center
-              </span>
-
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Supabase Connected
-              </span>
-
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/5 text-slate-300 border border-white/10">
-                <Lock className="w-3 h-3 text-orange-400" />
-                Dual-Envelope Sealed
-              </span>
-            </div>
-
             <div>
               <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                 {timeGreeting}, {userName}
@@ -676,24 +659,6 @@ export default function PurityDashboardView({
             </table>
           </div>
         )}
-      </div>
-
-      {/* 5. Enterprise Security & Compliance Bar */}
-      <div className="rounded-xl bg-white/[0.02] border border-white/5 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>
-            Enterprise Security Standard: <strong className="text-slate-300">Dual-Envelope Zero-Knowledge Encryption</strong> &amp; <strong className="text-slate-300">SHA-256 Audit Trail</strong>
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1 text-slate-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            Supabase PostgreSQL Active
-          </span>
-          <span className="hidden md:inline text-white/20">•</span>
-          <span className="text-slate-400 font-mono text-[10px]">ISO/IEC 27001</span>
-        </div>
       </div>
 
     </div>
