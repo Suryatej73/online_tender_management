@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, FileText, Gavel, Building2, FileCheck,
-  Award, HelpCircle, ExternalLink
+  Award, HelpCircle, ExternalLink, ShieldCheck
 } from 'lucide-react';
 
 export default function PuritySidebar({ activeTab, onTabChange, currentUser, onExploreClick }) {
@@ -34,6 +34,12 @@ export default function PuritySidebar({ activeTab, onTabChange, currentUser, onE
       id: 'evaluations',
       label: isSuperAdmin ? 'Evaluator Oversight' : 'Evaluations & Awards',
       icon: Award
+    }] : []),
+    // Admin Governance & Integrity Control Center (Super Admin & Org Admin only)
+    ...(isSuperAdmin || isOrgAdmin ? [{
+      id: 'admin_governance',
+      label: 'Admin Governance',
+      icon: ShieldCheck
     }] : []),
   ];
 

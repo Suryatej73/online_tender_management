@@ -1268,10 +1268,26 @@ class BidEvaluateView(APIView):
         tech_bid.evaluated_at = timezone.now()
         tech_bid.save()
 
+        action_msg = f"Bid evaluation recorded successfully (Status: {bid.status})"
         if action == 'disqualify':
             bid.status = BidStatus.DISQUALIFIED
+            action_msg = "Bid successfully disqualified for non-compliance."
         elif action == 'reject':
             bid.status = BidStatus.REJECTED
+            action_msg = "Bid proposal rejected."
+        elif action == 'audit_certify':
+            bid.status = BidStatus.EVALUATED
+            admin_name = getattr(user, 'full_name', '') or user.email
+            admin_note = f"[ADMIN AUDIT PASSED - {admin_name}]: {remarks or 'Audit verified compliant with procurement guidelines.'}"
+            tech_bid.evaluation_remarks = admin_note
+            tech_bid.save(update_fields=['evaluation_remarks'])
+            action_msg = "Evaluation successfully audited and certified compliant by Administrator."
+        elif action == 'reset_evaluation' and getattr(user, 'role', None) in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]:
+            tech_bid.technical_score = None
+            tech_bid.evaluation_remarks = f"[EVALUATION RESET BY ADMIN {user.email}]: {remarks or 'Reset for re-scoring.'}"
+            tech_bid.save()
+            bid.status = BidStatus.SUBMITTED
+            action_msg = "Evaluation reset to submission queue for re-scoring."
         else:
             bid.status = BidStatus.EVALUATED
         bid.save(update_fields=['status'])
@@ -1286,7 +1302,7 @@ class BidEvaluateView(APIView):
 
         return Response({
             "success": True,
-            "message": f"Bid evaluation recorded successfully (Status: {bid.status})",
+            "message": action_msg,
             "data": BidDetailSerializer(bid).data
         }, status=status.HTTP_200_OK)
 

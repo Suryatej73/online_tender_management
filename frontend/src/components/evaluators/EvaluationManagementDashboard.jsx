@@ -110,6 +110,7 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
   };
 
   const isTenderManager = ['SUPER_ADMIN', 'ORG_ADMIN', 'TENDER_MANAGER'].includes(user?.role);
+  const isAdmin = ['SUPER_ADMIN', 'ORG_ADMIN'].includes(user?.role);
 
   // Filtered collections
   const evaluationTenders = tenders.filter(t => ['EVALUATION', 'ACTIVE', 'PUBLISHED'].includes(t.status));
@@ -157,6 +158,19 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
           <span>Sync Board</span>
         </button>
       </div>
+
+      {/* Administrator Sovereign Oversight Banner */}
+      {isAdmin && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-purple-900/20 border border-purple-500/30 text-purple-200">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0" />
+            <div>
+              <span className="text-xs font-bold block text-white">Administrator Integrity &amp; Compliance Oversight</span>
+              <span className="text-[11px] text-purple-300/80">You have sovereign authority over the evaluation committee. You can audit scoring consistency, certify compliant evaluations, investigate irregularities, or reset contested submissions.</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. Feedback Alerts */}
       {error && (
@@ -480,6 +494,58 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
                         <span>Save Score</span>
                       </button>
                     </div>
+
+                    {/* Admin Audit Stamp if certified */}
+                    {tech?.evaluation_remarks?.includes('[ADMIN AUDIT PASSED') && (
+                      <div className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20 font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Legally Certified &amp; Audited by Platform Administrator</span>
+                      </div>
+                    )}
+
+                    {/* Administrator Audit & Oversight Controls */}
+                    {isAdmin && (
+                      <div className="mt-3 pt-3 border-t border-purple-500/20 flex flex-wrap items-center justify-between gap-2 bg-purple-950/20 p-2.5 rounded-lg">
+                        <div className="flex items-center gap-1.5 text-[11px] text-purple-300">
+                          <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                          <span className="font-bold">Admin Governance Actions:</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            onClick={() => handleScoreBid(b.id, 'audit_certify')}
+                            disabled={actionLoading}
+                            className="px-2.5 py-1 rounded-md bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 font-bold text-[10px] transition flex items-center gap-1"
+                            title="Certify evaluation compliance"
+                          >
+                            <span>🛡️ Certify Audit</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Disqualify bid ${b.bid_reference} for non-compliance or irregularity?`)) {
+                                handleScoreBid(b.id, 'disqualify');
+                              }
+                            }}
+                            disabled={actionLoading}
+                            className="px-2.5 py-1 rounded-md bg-red-600/20 hover:bg-red-600/40 text-red-300 border border-red-500/30 font-bold text-[10px] transition flex items-center gap-1"
+                            title="Disqualify for non-compliance"
+                          >
+                            <span>⚠️ Disqualify</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Reset evaluation for ${b.bid_reference}? The score will be cleared and returned to the scoring queue.`)) {
+                                handleScoreBid(b.id, 'reset_evaluation');
+                              }
+                            }}
+                            disabled={actionLoading}
+                            className="px-2.5 py-1 rounded-md bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 border border-amber-500/30 font-bold text-[10px] transition flex items-center gap-1"
+                            title="Reset evaluation for re-scoring"
+                          >
+                            <span>🔄 Reset Score</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                   </div>
                 );
