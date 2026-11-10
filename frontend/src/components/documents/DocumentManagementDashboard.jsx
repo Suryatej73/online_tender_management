@@ -77,13 +77,13 @@ export default function DocumentManagementDashboard({ currentUser }) {
         documentsApi.checkStorageHealth().catch(() => null)
       ]);
 
-      if (docsRes.success) setDocuments(docsRes.data || []);
-      if (typesRes.success) setDocTypes(typesRes.data || []);
-      if (expRes.success) setExpiringDocs(expRes.data || []);
-      if (tmplRes.success) setTemplates(tmplRes.data || []);
+      if (docsRes?.success) setDocuments(docsRes.data || []);
+      if (typesRes?.success) setDocTypes(typesRes.data || []);
+      if (expRes?.success) setExpiringDocs(expRes.data || []);
+      if (tmplRes?.success) setTemplates(tmplRes.data || []);
       if (healthRes) setStorageHealth(healthRes);
     } catch (err) {
-      showNotification('Failed to fetch document repository data', 'error');
+      console.warn('Document repository load warning:', err);
     } finally {
       setLoading(false);
     }
@@ -298,7 +298,7 @@ export default function DocumentManagementDashboard({ currentUser }) {
                 Documents
               </h1>
               <p className="text-slate-400 text-sm mt-0.5">
-                Secure S3 Storage, Cryptographic Integrity, OCR Text Extraction & Intelligence Engine
+                Tamper-Proof Cryptographic Vault • RFPs, BOQs, Technical Addenda &amp; Sealed Bid Proposals with SHA-256 Verification
               </p>
             </div>
 

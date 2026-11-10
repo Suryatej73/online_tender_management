@@ -179,12 +179,36 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
+  const switchRole = async (targetRole) => {
+    if (!user) return;
+    const updatedUser = { ...user, role: targetRole };
+    setUser(updatedUser);
+    localStorage.setItem('tenderx_user', JSON.stringify(updatedUser));
+
+    try {
+      const currentToken = localStorage.getItem('access_token') || tokens?.access;
+      if (currentToken) {
+        await fetch(`${API_BASE}/auth/me/`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ role: targetRole })
+        });
+      }
+    } catch (e) {
+      console.warn('Backend role update notice:', e);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
       tokens,
       saveAuth,
       logout,
+      switchRole,
       login,
       register,
       verifyOtp,

@@ -61,7 +61,7 @@ function formatCurrency(amount, currency = 'INR') {
 }
 
 export default function BidManagementDashboard({ initialTab, initialTenderId } = {}) {
-  const { user, isVendor } = useAuth();
+  const { user, isVendor, switchRole } = useAuth();
   const [view, setView] = useState(initialTab || 'dashboard'); // dashboard, detail, wizard, opening
   const [selectedBidId, setSelectedBidId] = useState(null);
   const [selectedTenderId, setSelectedTenderId] = useState(initialTenderId || null);
@@ -261,43 +261,119 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.02em' }}>
-            🏛️ Bid Management &amp; Proposal Submission Portal
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+            <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '4px', background: isVendor ? 'rgba(249,115,22,0.15)' : 'rgba(59,130,246,0.15)', color: isVendor ? '#f97316' : '#60a5fa', fontWeight: 'bold' }}>
+              {isVendor ? '🏢 SUPPLIER / BIDDER PORTAL' : '🏛️ PROCURING ENTITY OVERSIGHT'}
+            </span>
+          </div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#fff' }}>
+            {isVendor ? '🏢 My Bids & Proposal Submissions' : '🏛️ Received Bids & Solicitations Overview'}
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-            Two-Envelope Sealed Bidding • Enter Quote, Verify Details, and Submit Proposals
+            {isVendor
+              ? 'Two-Envelope Sealed Bidding • Enter Quote, Verify Technical Details, and Submit Proposals'
+              : 'Sealed Dual-Envelope Bids Submitted by Registered Vendors for Your Solicitations'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={openCreateWizard}
-            className="btn-action"
-            style={{
-              padding: '0.55rem 1.25rem',
-              fontSize: '0.85rem',
-              fontWeight: '700',
-              background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-              boxShadow: '0 4px 12px rgba(249, 115, 22, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem'
-            }}
-          >
-            <span>+ Create New Bid</span>
-          </button>
-          {!isVendor && (
+
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {isVendor ? (
             <button
-              onClick={() => { setSelectedTenderId(null); setView('opening'); }}
+              onClick={openCreateWizard}
               className="btn-action"
-              style={{ padding: '0.55rem 1rem', fontSize: '0.85rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              style={{
+                padding: '0.55rem 1.25rem',
+                fontSize: '0.85rem',
+                fontWeight: '700',
+                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                boxShadow: '0 4px 12px rgba(249, 115, 22, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem'
+              }}
             >
-              🔓 Bid Opening Panel
+              <span>+ Submit New Bid</span>
             </button>
+          ) : (
+            <>
+              <button
+                onClick={async () => {
+                  if (switchRole) await switchRole('VENDOR');
+                  openCreateWizard();
+                }}
+                className="btn-action"
+                style={{
+                  padding: '0.55rem 1.1rem',
+                  fontSize: '0.8rem',
+                  fontWeight: '700',
+                  background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                  boxShadow: '0 4px 12px rgba(249, 115, 22, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  color: '#fff'
+                }}
+                title="Switch persona to Vendor to test the bidding workflow"
+              >
+                <span>🎭 Test as Vendor / Bidder</span>
+              </button>
+              <button
+                onClick={() => { setSelectedTenderId(null); setView('opening'); }}
+                className="btn-action"
+                style={{ padding: '0.55rem 1rem', fontSize: '0.8rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                🔓 Bid Opening Panel
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {/* Procuring Official Guidance Banner when not in Vendor mode */}
+      {!isVendor && (
+        <div style={{
+          padding: '0.9rem 1.25rem',
+          borderRadius: '12px',
+          background: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid rgba(59, 130, 246, 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', maxWidth: '80%' }}>
+            <span style={{ fontSize: '1.4rem' }}>⚖️</span>
+            <div>
+              <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#93c5fd' }}>
+                Conflict of Interest Policy &amp; Separation of Duties
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.2rem', lineHeight: '1.4' }}>
+                You are viewing the solicitations register as a <strong>{user?.role === 'TENDER_MANAGER' ? 'Tender Manager' : user?.role || 'Procuring Official'}</strong>. In statutory procurement, procuring officers cannot bid on tenders they publish. To test the supplier bidding experience, click <strong>"Test as Vendor / Bidder"</strong> or use the top bar Role Switcher.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              if (switchRole) await switchRole('VENDOR');
+              openCreateWizard();
+            }}
+            className="btn-action"
+            style={{
+              padding: '0.45rem 0.9rem',
+              fontSize: '0.75rem',
+              fontWeight: '700',
+              background: 'rgba(249,115,22,0.15)',
+              border: '1px solid rgba(249,115,22,0.35)',
+              color: '#f97316'
+            }}
+          >
+            Switch to Vendor &amp; Bid →
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       {dashboard && (
