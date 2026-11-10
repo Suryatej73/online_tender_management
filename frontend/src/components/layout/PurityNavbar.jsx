@@ -30,16 +30,13 @@ export default function PurityNavbar({
   theme = 'dark',
   onToggleTheme
 }) {
-  const { switchRole } = useAuth();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const notifRef = useRef(null);
   const settingsRef = useRef(null);
-  const roleMenuRef = useRef(null);
 
   const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ORG_ADMIN';
 
@@ -148,9 +145,7 @@ export default function PurityNavbar({
       if (settingsRef.current && !settingsRef.current.contains(event.target)) {
         setSettingsOpen(false);
       }
-      if (roleMenuRef.current && !roleMenuRef.current.contains(event.target)) {
-        setRoleMenuOpen(false);
-      }
+
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -239,72 +234,6 @@ export default function PurityNavbar({
           <ExternalLink className="w-3.5 h-3.5" />
           <span className="hidden md:inline">Explore Mode</span>
         </button>
-
-        {/* Role / Persona Switcher */}
-        <div className="relative" ref={roleMenuRef}>
-          <button
-            onClick={() => {
-              setRoleMenuOpen(!roleMenuOpen);
-              setNotificationsOpen(false);
-              setSettingsOpen(false);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-xs font-bold text-orange-400 transition"
-            title="Switch Persona / Role for Testing"
-          >
-            <span>🎭</span>
-            <span className="hidden md:inline text-white/70">Role:</span>
-            <span className="font-mono text-white font-extrabold text-[11px]">
-              {currentUser?.role === 'TENDER_MANAGER' ? 'Tender Manager' : currentUser?.role === 'VENDOR' ? 'Vendor / Bidder' : currentUser?.role === 'EVALUATOR' ? 'Evaluator' : currentUser?.role || 'User'}
-            </span>
-            <span className="text-[10px] text-orange-400">▾</span>
-          </button>
-
-          {roleMenuOpen && (
-            <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-[#0d1117] border border-white/10 shadow-2xl p-3 z-50 backdrop-blur-2xl space-y-1 animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="px-2 py-1.5 border-b border-white/10 mb-1">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
-                  Active Persona Switcher
-                </p>
-                <p className="text-[10px] text-white/50">
-                  Experience the system from different procurement roles
-                </p>
-              </div>
-
-              {[
-                { role: 'TENDER_MANAGER', label: 'Tender Manager (Buyer)', icon: '🏛️', desc: 'Create & publish tenders, review bids, award contracts (Cannot bid)' },
-                { role: 'VENDOR', label: 'Vendor / Bidder (Supplier)', icon: '🏢', desc: 'Browse tenders, submit sealed technical & financial bids' },
-                { role: 'EVALUATOR', label: 'Evaluator (Committee)', icon: '⚖️', desc: 'Score technical dossiers, participate in financial opening' },
-                { role: 'SUPER_ADMIN', label: 'Super Admin', icon: '🛡️', desc: 'System governance, user directory, RBAC matrix' },
-              ].map(item => (
-                <button
-                  key={item.role}
-                  onClick={async () => {
-                    setRoleMenuOpen(false);
-                    if (switchRole) {
-                      await switchRole(item.role);
-                    }
-                  }}
-                  className={`w-full flex items-start gap-2.5 p-2 rounded-xl text-left transition ${
-                    currentUser?.role === item.role
-                      ? 'bg-orange-500/15 border border-orange-500/30 text-white'
-                      : 'hover:bg-white/5 text-slate-300'
-                  }`}
-                >
-                  <span className="text-base mt-0.5">{item.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold">{item.label}</span>
-                      {currentUser?.role === item.role && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-orange-500 text-white font-black">ACTIVE</span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-white/40 leading-snug mt-0.5">{item.desc}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* Notification Bell Dropdown (Real live backend events) */}
         <div className="relative" ref={notifRef}>

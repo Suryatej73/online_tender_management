@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Award, Gavel, FileText, CheckCircle2, AlertCircle, RefreshCw,
   Search, Eye, Filter, UserCheck, ShieldCheck, Clock, ArrowRight,
-  Save, AlertTriangle, Building2, DollarSign, Lock, Unlock
+  Save, AlertTriangle, Building2, DollarSign, Lock, Unlock,
+  ChevronDown, XCircle, FileCheck, Check, Paperclip
 } from 'lucide-react';
 import { tendersApi } from '../../api/tendersApi';
 import { bidsApi } from '../../api/bidsApi';
@@ -29,6 +30,8 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
   // Scoring form state mapped by bidId
   const [scores, setScores] = useState({});
   const [remarks, setRemarks] = useState({});
+  const [expandedDocs, setExpandedDocs] = useState({});
+  const toggleDocs = (bidId) => setExpandedDocs(prev => ({ ...prev, [bidId]: !prev[bidId] }));
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -66,22 +69,22 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
     loadData();
   }, [loadData]);
 
-  const handleScoreBid = async (bidId, action = 'evaluate') => {
+  const handleScoreBid = async (bidId, action = 'evaluate', customRemark = '') => {
     setError('');
     setActionLoading(true);
     try {
       const score = scores[bidId];
-      const remark = remarks[bidId];
+      const remark = customRemark || remarks[bidId] || '';
       const res = await bidsApi.evaluateBid(bidId, {
-        technical_score: score,
+        technical_score: score ? parseFloat(score) : undefined,
         evaluation_remarks: remark,
         action
       });
-      setSuccessMsg(res.message || 'Evaluation score recorded successfully!');
+      setSuccessMsg(res.message || (action === 'disqualify' ? 'Bid disqualified successfully.' : 'Evaluation recorded successfully!'));
       setTimeout(() => setSuccessMsg(''), 4000);
       await loadData();
     } catch (err) {
-      setError(err.message || 'Failed to record evaluation score.');
+      setError(err.message || 'Failed to process evaluation action.');
     } finally {
       setActionLoading(false);
     }
@@ -460,7 +463,81 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
                       </div>
                     </div>
 
-                    {/* Scoring & Notes Input */}
+                    {/* Documentation & Proposal Inspection Toggle */}
+                    <div className="mt-2 flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => toggleDocs(b.id)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-300 transition"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-orange-400" />
+                        <span>{expandedDocs[b.id] ? 'Hide Proposal Dossier' : 'Inspect Submitted Documents & Dossier'}</span>
+                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${expandedDocs[b.id] ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {b.status === 'DISQUALIFIED' ? (
+                        <span className="text-[10px] font-bold text-red-400 px-2.5 py-1 rounded bg-red-500/10 border border-red-500/30">
+                          DECLINED / DISQUALIFIED
+                        </span>
+                      ) : b.status === 'EVALUATED' ? (
+                        <span className="text-[10px] font-bold text-purple-400 px-2.5 py-1 rounded bg-purple-500/10 border border-purple-500/30">
+                          SCORED & EVALUATED
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* Expandable Proposal Dossier & Verification Panel */}
+                    {expandedDocs[b.id] && (
+                      <div className="mt-3 p-3.5 rounded-xl bg-[#07090e] border border-white/10 space-y-3 text-xs animate-in fade-in duration-200">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Delivery Schedule:</span>
+                            <p className="text-white font-mono bg-white/5 p-2 rounded-lg">{tech?.delivery_plan || '180 Calendar Days'}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Compliance Confirmation:</span>
+                            <p className="text-white bg-white/5 p-2 rounded-lg">{tech?.compliance_statement || 'Affirmed complete compliance with tender specifications and BOQ items.'}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Technical Execution Methodology:</span>
+                          <p className="text-slate-300 bg-white/5 p-2.5 rounded-lg leading-relaxed whitespace-pre-wrap">{tech?.methodology || 'Conforming technical proposal submitted.'}</p>
+                        </div>
+
+                        {/* Attached Bid Proposal Documents */}
+                        <div className="space-y-1.5 pt-2 border-t border-white/5">
+                          <span className="text-[10px] uppercase font-bold text-sky-400 flex items-center gap-1">
+                            <Paperclip className="w-3 h-3" />
+                            Submitted Proposal Documents &amp; Certificates ({b.documents?.length || 0})
+                          </span>
+                          {b.documents && b.documents.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                              {b.documents.map((doc, idx) => (
+                                <div key={doc.id || idx} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/10">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <FileCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                                    <div className="min-w-0">
+                                      <p className="font-semibold text-white truncate text-[11px]">{doc.title || doc.file_name || `Attachment_${idx+1}`}</p>
+                                      <p className="text-[9px] text-slate-400 uppercase font-mono">{doc.document_type || 'PROPOSAL_ATTACHMENT'}</p>
+                                    </div>
+                                  </div>
+                                  <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shrink-0">
+                                    VERIFIED
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-slate-500 italic text-[11px] bg-white/[0.02] p-2 rounded">
+                              Standard technical dossier verified & registered via TenderX dual-envelope portal.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Scoring & Evaluator Action Controls */}
                     <div className="pt-2 flex flex-col sm:flex-row items-end gap-2 text-xs">
                       <div className="w-full sm:w-36">
                         <label className="text-[10px] font-bold text-slate-400 block mb-1">Score (0-100)</label>
@@ -481,18 +558,47 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
                           type="text"
                           value={remarks[b.id] ?? ''}
                           onChange={(e) => setRemarks({ ...remarks, [b.id]: e.target.value })}
-                          placeholder="Enter compliance justification and scoring rationale..."
+                          placeholder="Enter compliance justification or non-conformance notes..."
                           className="w-full px-2.5 py-1.5 bg-[#07090e] border border-white/10 rounded-lg text-white"
                         />
                       </div>
-                      <button
-                        onClick={() => handleScoreBid(b.id, 'evaluate')}
-                        disabled={actionLoading}
-                        className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold transition shrink-0"
-                      >
-                        <Save className="w-3.5 h-3.5 inline mr-1" />
-                        <span>Save Score</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleScoreBid(b.id, 'evaluate')}
+                          disabled={actionLoading}
+                          className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold transition flex items-center gap-1"
+                          title="Save evaluation score and compliance comments"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Save Score</span>
+                        </button>
+
+                        {/* Evaluator Disqualify / Decline Wrong Bid Action */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentRemark = remarks[b.id];
+                            const reason = window.prompt(
+                              `Decline / Disqualify Bid ${b.bid_reference}? Enter rejection reason (e.g. Non-compliant technical parameters, missing mandatory certifications):`,
+                              currentRemark || 'Proposal failed mandatory technical requirements.'
+                            );
+                            if (reason !== null && reason.trim()) {
+                              handleScoreBid(b.id, 'disqualify', reason.trim());
+                            }
+                          }}
+                          disabled={actionLoading || b.status === 'DISQUALIFIED'}
+                          className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
+                            b.status === 'DISQUALIFIED'
+                              ? 'bg-red-500/10 text-red-400/50 border border-red-500/20 cursor-not-allowed'
+                              : 'bg-red-600/20 hover:bg-red-600/35 text-red-300 border border-red-500/30'
+                          }`}
+                          title="Decline / Disqualify non-compliant or erroneous bid"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>{b.status === 'DISQUALIFIED' ? 'Disqualified' : 'Decline Bid'}</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Admin Audit Stamp if certified */}

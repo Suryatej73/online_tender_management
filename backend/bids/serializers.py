@@ -171,6 +171,9 @@ class BidListSerializer(serializers.ModelSerializer):
     is_modifiable = serializers.SerializerMethodField()
     can_withdraw = serializers.SerializerMethodField()
     deadline_remaining = serializers.SerializerMethodField()
+    technical_bid = serializers.SerializerMethodField()
+    financial_bid = serializers.SerializerMethodField()
+    documents = serializers.SerializerMethodField()
 
     class Meta:
         model = Bid
@@ -181,6 +184,7 @@ class BidListSerializer(serializers.ModelSerializer):
             'submitted_at', 'locked_at', 'withdrawn_at',
             'document_count', 'has_technical', 'has_financial',
             'is_modifiable', 'can_withdraw', 'deadline_remaining',
+            'technical_bid', 'financial_bid', 'documents',
             'created_at', 'updated_at',
         ]
 
@@ -207,6 +211,33 @@ class BidListSerializer(serializers.ModelSerializer):
 
     def get_can_withdraw(self, obj):
         return obj.can_withdraw
+
+    def get_technical_bid(self, obj):
+        if hasattr(obj, 'technical_bid') and obj.technical_bid:
+            return TechnicalBidSerializer(obj.technical_bid).data
+        return None
+
+    def get_documents(self, obj):
+        docs = obj.documents.filter(is_deleted=False)
+        return BidDocumentSerializer(docs, many=True).data
+
+    def get_financial_bid(self, obj):
+        if not hasattr(obj, 'financial_bid') or not obj.financial_bid:
+            return None
+        # Unseal financial pricing if bid has passed opening / evaluation stages
+        if obj.status in [
+            BidStatus.FINANCIAL_OPENED,
+            BidStatus.EVALUATED,
+            BidStatus.AWARDED,
+            BidStatus.REJECTED,
+            BidStatus.DISQUALIFIED,
+        ]:
+            return {
+                'final_amount': str(obj.financial_bid.final_amount),
+                'currency': obj.financial_bid.currency,
+                'discount_percentage': str(obj.financial_bid.discount_percentage),
+            }
+        return None
 
     def get_deadline_remaining(self, obj):
         if obj.tender and obj.tender.submission_deadline:

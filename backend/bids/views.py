@@ -200,6 +200,14 @@ class BidListCreateView(APIView):
             return Response({"success": False, "message": "Tender not found."},
                           status=status.HTTP_404_NOT_FOUND)
 
+        # Conflict of Interest & Separation of Duties check:
+        # Tender Managers and Evaluators cannot bid on tenders
+        if getattr(user, 'role', None) in [UserRole.TENDER_MANAGER, UserRole.EVALUATOR, UserRole.AUDITOR]:
+            return Response({
+                "success": False,
+                "message": f"Conflict of Interest: {getattr(user, 'role', 'Procurement staff')} accounts are prohibited from submitting bids. Please sign in as a registered Vendor."
+            }, status=status.HTTP_403_FORBIDDEN)
+
         # Get or resolve vendor profile
         vendor = None
         from vendors.models import Vendor, VendorStatus

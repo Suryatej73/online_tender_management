@@ -113,7 +113,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         setMaskedEmail(data.masked_email || formData.email);
         setOtpPurpose(data.purpose || 'LOGIN');
         setOtpPending(true);
-        setOtpCode('');
+        if (data.demo_otp_hint) {
+          setOtpCode(data.demo_otp_hint);
+        } else {
+          setOtpCode('');
+        }
         setResendCooldown(60);
         setMsg(
           data.message ||
@@ -156,7 +160,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         setMaskedEmail(data.masked_email || formData.email);
         setOtpPurpose(data.purpose || 'SIGNUP');
         setOtpPending(true);
-        setOtpCode('');
+        if (data.demo_otp_hint) {
+          setOtpCode(data.demo_otp_hint);
+        } else {
+          setOtpCode('');
+        }
         setResendCooldown(60);
         setMsg(
           data.message ||
@@ -758,12 +766,10 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
                   onChange={handleChange}
                   style={{ ...underlineInputStyle, cursor: 'pointer' }}
                 >
-                  <option value="VENDOR">Vendor / Bidder</option>
-                  <option value="TENDER_MANAGER">Tender Manager</option>
-                  <option value="EVALUATOR">Evaluator</option>
-                  <option value="AUDITOR">Auditor</option>
-                  <option value="ORG_ADMIN">Org Admin</option>
-                  <option value="SUPER_ADMIN">Super Admin</option>
+                  <option value="VENDOR">🏢 Vendor / Bidder</option>
+                  <option value="TENDER_MANAGER">🏛️ Tender Manager</option>
+                  <option value="EVALUATOR">⚖️ Evaluator</option>
+                  <option value="SUPER_ADMIN">🛡️ Super Admin</option>
                 </select>
                 <input
                   type="text"
