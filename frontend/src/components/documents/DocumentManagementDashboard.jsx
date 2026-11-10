@@ -6,6 +6,8 @@ import {
   FileCheck, Layers, ExternalLink, HardDrive, ShieldAlert, Sparkles
 } from 'lucide-react';
 import { documentsApi } from '../../api/documentsApi';
+import { tendersApi } from '../../api/tendersApi';
+import { useAuth } from '../../context/AuthContext';
 
 export default function DocumentManagementDashboard({ currentUser }) {
   const [activeTab, setActiveTab] = useState('repository');
@@ -18,6 +20,10 @@ export default function DocumentManagementDashboard({ currentUser }) {
   const [notification, setNotification] = useState(null);
 
   // Filters & Search
+  const { user, isVendor } = useAuth();
+  const [scope, setScope] = useState('tenders'); // 'tenders' | 'mine' | 'bids'
+  const [selectedTenderId, setSelectedTenderId] = useState('');
+  const [tendersList, setTendersList] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -64,12 +70,22 @@ export default function DocumentManagementDashboard({ currentUser }) {
   const loadData = async () => {
     setLoading(true);
     try {
+      // Load tender list for dropdown
+      try {
+        const tRes = await tendersApi.getTenders({ limit: 100 });
+        setTendersList(tRes.data || []);
+      } catch {}
+
+      const ownerTypeFilter = scope === 'mine' ? '' : (scope === 'bids' ? 'BID' : (selectedOwnerType || 'TENDER'));
+
       const [docsRes, typesRes, expRes, tmplRes, healthRes] = await Promise.all([
         documentsApi.getDocuments({
           search: searchQuery,
           document_type: selectedType,
           status: selectedStatus,
-          owner_type: selectedOwnerType,
+          owner_type: ownerTypeFilter,
+          owner_id: selectedTenderId || undefined,
+          scope: scope,
         }).catch(() => ({ success: true, data: [] })),
         documentsApi.getDocumentTypes().catch(() => ({ success: true, data: [] })),
         documentsApi.getExpiringDocuments(30).catch(() => ({ success: true, data: [] })),
@@ -91,7 +107,7 @@ export default function DocumentManagementDashboard({ currentUser }) {
 
   useEffect(() => {
     loadData();
-  }, [searchQuery, selectedType, selectedStatus, selectedOwnerType]);
+  }, [searchQuery, selectedType, selectedStatus, selectedOwnerType, scope, selectedTenderId]);
 
   // Handle Document Viewer
   const handleOpenViewer = async (doc) => {
@@ -419,6 +435,77 @@ export default function DocumentManagementDashboard({ currentUser }) {
       {/* TAB 1: REPOSITORY TABLE */}
       {activeTab === 'repository' && (
         <div className="space-y-4">
+
+          {/* Privacy & Security Assurance Banner */}
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300">
+            <Shield className="w-4 h-4 text-blue-400 shrink-0" />
+            <span>
+              {isVendor
+                ? 'Dual-Envelope Privacy Active: Competitor bid files are strictly locked and segregated. You only see official tender solicitations and your own company’s uploaded files.'
+                : 'Procuring Authority Vault: Documents are cryptographically indexed with SHA-256 integrity verification. Access is governed by RBAC and procurement phase.'}
+            </span>
+          </div>
+
+          {/* Scope Hierarchy & Tender Folder Filter */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setScope('tenders')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                  scope === 'tenders'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-700/60'
+                }`}
+              >
+                <span>📁 Official Tender Solicitations</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setScope('mine')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                  scope === 'mine'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-700/60'
+                }`}
+              >
+                <span>🔒 My Confidential Dossier</span>
+              </button>
+
+              {!isVendor && (
+                <button
+                  type="button"
+                  onClick={() => setScope('bids')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                    scope === 'bids'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                      : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-700/60'
+                  }`}
+                >
+                  <span>⚖️ Received Bid Submissions</span>
+                </button>
+              )}
+            </div>
+
+            {/* Tender Solicitation Folder Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-medium">Tender Folder:</span>
+              <select
+                value={selectedTenderId}
+                onChange={e => setSelectedTenderId(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none max-w-xs truncate"
+              >
+                <option value="">All Solicitations</option>
+                {tendersList.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.tender_number} - {t.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Search & Filter Bar */}
           <div className="bg-slate-800/40 p-4 rounded-xl border border-slate-700/60 flex flex-col md:flex-row gap-3 items-center justify-between">
             <div className="relative w-full md:w-80">

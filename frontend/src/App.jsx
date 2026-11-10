@@ -98,6 +98,19 @@ function TenderXApp() {
     return () => window.clearInterval(refreshTimer);
   }, [loadDashboard]);
 
+  // Role-based access guard: Automatically redirect unauthorized tabs
+  useEffect(() => {
+    if (!user) return;
+    const role = user.role;
+    if (role === 'VENDOR' && ['vendors', 'evaluations', 'admin_governance', 'users', 'rbac'].includes(activeTab)) {
+      setActiveTab('dashboard');
+    } else if (role === 'EVALUATOR' && ['vendors', 'bids', 'admin_governance', 'users', 'rbac'].includes(activeTab)) {
+      setActiveTab('evaluations');
+    } else if (role === 'TENDER_MANAGER' && ['admin_governance', 'users', 'rbac'].includes(activeTab)) {
+      setActiveTab('dashboard');
+    }
+  }, [user?.role, activeTab]);
+
   // If user is NOT logged in or explicitly browsing explore, show Explore Landing Page
   if (!user || showExplorePage) {
     return (

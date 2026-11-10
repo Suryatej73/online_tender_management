@@ -5,16 +5,36 @@ import {
 } from 'lucide-react';
 
 export default function PuritySidebar({ activeTab, onTabChange, currentUser, onExploreClick }) {
-  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const role = currentUser?.role || 'VENDOR';
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isOrgAdmin = role === 'ORG_ADMIN';
+  const isTenderManager = role === 'TENDER_MANAGER' || isSuperAdmin || isOrgAdmin;
+  const isVendor = role === 'VENDOR';
+  const isEvaluator = role === 'EVALUATOR';
 
   const navItems = [
     { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
-    { id: 'tenders', label: 'Tenders & BOQ', icon: FileText },
-    // Super Admin does NOT submit bids - only vendors and organization members view/submit bids
-    ...(!isSuperAdmin ? [{ id: 'bids', label: 'Bids & Proposals', icon: Gavel }] : []),
-    { id: 'vendors', label: 'Vendor 360', icon: Building2 },
-    { id: 'documents', label: 'Documents', icon: FileCheck },
-    { id: 'evaluations', label: isSuperAdmin ? 'Evaluator Oversight' : 'Evaluations & Awards', icon: Award },
+    {
+      id: 'tenders',
+      label: isVendor ? 'Tenders & Solicitations' : 'Tenders & BOQ',
+      icon: FileText
+    },
+    // Bids & Proposals: Vendors see "My Bids & Proposals", Tender Managers/Admins see "Received Bids", Evaluators do not manage bids
+    ...(!isEvaluator ? [{
+      id: 'bids',
+      label: isVendor ? 'My Bids & Proposals' : 'Received Bids',
+      icon: Gavel
+    }] : []),
+    // Vendor 360: Supplier Master Directory & Due Diligence (Only for Tender Managers and Admins)
+    ...(isTenderManager ? [{ id: 'vendors', label: 'Vendor 360', icon: Building2 }] : []),
+    // Document Vault: Contextual document repository
+    { id: 'documents', label: 'Document Vault', icon: FileCheck },
+    // Evaluations & Awards: Committee and Tender Managers only. Strictly hidden for Vendors!
+    ...(!isVendor ? [{
+      id: 'evaluations',
+      label: isSuperAdmin ? 'Evaluator Oversight' : 'Evaluations & Awards',
+      icon: Award
+    }] : []),
   ];
 
   return (

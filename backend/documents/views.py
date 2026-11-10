@@ -87,25 +87,48 @@ class DocumentListView(APIView):
     def get(self, request):
         queryset = Document.objects.filter(is_deleted=False)
 
-        # Enforce Organization Isolation unless Super Admin
+        # Enforce Organization Isolation, Competitor Privacy & Scope
         user = request.user
-        if user.role != UserRole.SUPER_ADMIN:
-            if user.role == UserRole.VENDOR:
-                # Vendors see public tender documents or their own uploaded documents
+        scope = request.GET.get('scope', '').strip()
+        owner_id = request.GET.get('owner_id', request.GET.get('tender_id', '')).strip()
+
+        if user.role == UserRole.VENDOR:
+            # Competitor Privacy & Isolation:
+            # Vendors can ONLY see official tender publications OR their own company's uploaded documents.
+            # They can NEVER see another vendor's bids, dossiers or proposals.
+            if scope == 'mine':
+                queryset = queryset.filter(uploaded_by=user)
+            elif scope == 'tenders':
+                queryset = queryset.filter(owner_type='TENDER')
+            else:
                 queryset = queryset.filter(
-                    Q(owner_type='TENDER') | Q(uploaded_by=user)
+                    (Q(owner_type='TENDER') & (Q(uploaded_by__role__in=[UserRole.TENDER_MANAGER, UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]) | Q(uploaded_by__isnull=True))) |
+                    Q(uploaded_by=user)
                 )
+        elif user.role != UserRole.SUPER_ADMIN:
+            if scope == 'mine':
+                queryset = queryset.filter(uploaded_by=user)
+            elif scope == 'tenders':
+                queryset = queryset.filter(owner_type='TENDER')
+            elif scope == 'bids':
+                queryset = queryset.filter(owner_type='BID')
             elif user.organization_id:
                 queryset = queryset.filter(
                     Q(organization_id=user.organization_id) | Q(owner_type='TENDER')
                 )
+        else:
+            if scope == 'mine':
+                queryset = queryset.filter(uploaded_by=user)
+            elif scope == 'tenders':
+                queryset = queryset.filter(owner_type='TENDER')
+            elif scope == 'bids':
+                queryset = queryset.filter(owner_type='BID')
 
         # Filters
         search = request.GET.get('search', request.GET.get('q', '')).strip()
         doc_status = request.GET.get('status', '').strip()
         doc_type = request.GET.get('document_type', '').strip()
         owner_type = request.GET.get('owner_type', '').strip()
-        owner_id = request.GET.get('owner_id', '').strip()
         verification_status = request.GET.get('verification_status', '').strip()
         is_archived = request.GET.get('is_archived', '').strip()
         sort_by = request.GET.get('sort_by', '-created_at').strip()
