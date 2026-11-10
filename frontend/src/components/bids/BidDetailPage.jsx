@@ -249,6 +249,78 @@ export default function BidDetailPage({ bidId, onBack }) {
         </div>
       </div>
 
+      {/* Status Guidance Banner */}
+      {bid.status === 'DRAFT' && (
+        <div style={{
+          padding: '0.85rem 1.25rem',
+          borderRadius: '10px',
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ fontSize: '1.25rem' }}>⚡</span>
+            <div>
+              <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#fbbf24' }}>
+                Draft Bid in Progress
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>
+                This proposal is saved in draft mode. Enter your financial quote and technical methodology, then click Submit Bid to seal and finalize.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => setShowFinForm(true)}
+              className="btn-action"
+              style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', background: 'rgba(255,255,255,0.1)' }}
+            >
+              💰 Set Quoted Amount
+            </button>
+            <button
+              onClick={() => setShowTechForm(true)}
+              className="btn-action"
+              style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', background: 'rgba(255,255,255,0.1)' }}
+            >
+              📝 Set Technical Plan
+            </button>
+            <button
+              onClick={handleSubmitBid}
+              className="btn-action"
+              style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontWeight: 'bold' }}
+            >
+              🚀 Submit Final Bid
+            </button>
+          </div>
+        </div>
+      )}
+
+      {bid.status === 'SUBMITTED' && (
+        <div style={{
+          padding: '0.85rem 1.25rem',
+          borderRadius: '10px',
+          background: 'rgba(16, 185, 129, 0.1)',
+          border: '1px solid rgba(16, 185, 129, 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem'
+        }}>
+          <span style={{ fontSize: '1.25rem' }}>🔒</span>
+          <div>
+            <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#34d399' }}>
+              Dual-Envelope Escrow Sealed
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>
+              Your bid has been successfully submitted and cryptographically sealed. Technical evaluation will proceed first; financial bids remain encrypted until the designated opening ceremony.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid var(--border-muted)', paddingBottom: '0.5rem' }}>
         {['overview', 'technical', 'financial', 'documents', 'versions', 'timeline', 'audit'].map((tab) => (

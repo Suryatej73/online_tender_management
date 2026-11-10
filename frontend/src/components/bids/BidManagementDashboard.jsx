@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  FileText, Gavel, DollarSign, CheckCircle2, Clock, AlertTriangle,
+  ArrowRight, ArrowLeft, ShieldCheck, Lock, Sparkles, X, ChevronRight
+} from 'lucide-react';
 import { bidsApi } from '../../api/bidsApi';
 import { tendersApi } from '../../api/tendersApi';
 import { useAuth } from '../../context/AuthContext';
@@ -38,17 +42,26 @@ function formatDeadline(seconds) {
 }
 
 function formatCurrency(amount, currency = 'INR') {
+  const num = Number(amount || 0);
+  if (currency === 'INR') {
+    if (num >= 10000000) {
+      return `₹${(num / 10000000).toFixed(2)} Cr`;
+    }
+    if (num >= 100000) {
+      return `₹${(num / 100000).toFixed(2)} L`;
+    }
+  }
   try {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency', currency, maximumFractionDigits: 0
-    }).format(Number(amount || 0));
+    }).format(num);
   } catch {
     return `${currency} ${amount}`;
   }
 }
 
 export default function BidManagementDashboard({ initialTab, initialTenderId } = {}) {
-  const { user, isVendor, isEvaluator } = useAuth();
+  const { user, isVendor } = useAuth();
   const [view, setView] = useState(initialTab || 'dashboard'); // dashboard, detail, wizard, opening
   const [selectedBidId, setSelectedBidId] = useState(null);
   const [selectedTenderId, setSelectedTenderId] = useState(initialTenderId || null);
@@ -57,15 +70,32 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: '', search: '' });
+
+  // Guided Bid Creation Wizard Modal State
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState(0); // 0: Select Tender, 1: Enter Bid Details, 2: Reverify, 3: Submitted
   const [tenders, setTenders] = useState([]);
+  const [selectedTender, setSelectedTender] = useState(null);
+  const [bidForm, setBidForm] = useState({
+    total_amount: '',
+    currency: 'INR',
+    tax_amount: '',
+    discount: '',
+    methodology: '',
+    delivery_plan: '180 Calendar Days',
+    compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
+    declaredConfirmed: false,
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState('');
+  const [submittedBidResult, setSubmittedBidResult] = useState(null);
 
   const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
       const [dashRes, bidsRes] = await Promise.all([
-        bidsApi.getDashboard(),
-        bidsApi.getBids({ ...filters, limit: 20 }),
+        bidsApi.getDashboard().catch(() => ({ data: {} })),
+        bidsApi.getBids({ ...filters, limit: 20 }).catch(() => ({ data: [] })),
       ]);
       setDashboard(dashRes.data || {});
       setBids(bidsRes.data || []);
@@ -79,42 +109,126 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
-  const loadTenders = async () => {
+  const openCreateWizard = async () => {
     try {
       const res = await tendersApi.getTenders({ status: 'OPEN', limit: 50 });
       setTenders(res.data || []);
+      setWizardStep(0);
+      setSelectedTender(null);
+      setBidForm({
+        total_amount: '',
+        currency: 'INR',
+        tax_amount: '',
+        discount: '',
+        methodology: '',
+        delivery_plan: '180 Calendar Days',
+        compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
+        declaredConfirmed: false,
+      });
+      setSubmissionResult(null);
+      setSubmissionError('');
       setCreateModalOpen(true);
     } catch (err) {
       console.error('Failed to load tenders:', err);
     }
   };
 
-  const handleCreateBid = async (tenderId) => {
-    try {
-      const res = await bidsApi.createBid(tenderId);
-      setCreateModalOpen(false);
-      await loadDashboard();
-      if (res?.data?.id) {
-        setSelectedBidId(res.data.id);
-        setView('detail');
-      }
-    } catch (err) {
-      alert(err.message || 'Failed to create bid');
-    }
-  };
-
   useEffect(() => {
     if (initialTenderId) {
-      handleCreateBid(initialTenderId);
+      (async () => {
+        try {
+          const res = await tendersApi.getTenderDetail(initialTenderId);
+          if (res?.data) {
+            setSelectedTender(res.data);
+            setWizardStep(1);
+            setBidForm({
+              total_amount: '',
+              currency: 'INR',
+              tax_amount: '',
+              discount: '',
+              methodology: '',
+              delivery_plan: '180 Calendar Days',
+              compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
+              declaredConfirmed: false,
+            });
+            setSubmissionResult(null);
+            setSubmissionError('');
+            setCreateModalOpen(true);
+          }
+        } catch {
+          openCreateWizard();
+        }
+      })();
     }
   }, [initialTenderId]);
 
-  const handleViewBid = (bidId) => {
-    setSelectedBidId(bidId);
-    setView('detail');
+  const handleSelectTender = (t) => {
+    setSelectedTender(t);
+    setSubmissionError('');
+    setWizardStep(1);
   };
 
-  const handleAmendBid = (bidId) => {
+  const handleFinalSubmitBid = async () => {
+    if (!selectedTender) return;
+    try {
+      setIsSubmitting(true);
+      setSubmissionError('');
+
+      // 1. Create or resume draft bid
+      const bidRes = await bidsApi.createBid(selectedTender.id);
+      const createdBidId = bidRes?.data?.id;
+      if (!createdBidId) {
+        throw new Error(bidRes?.message || 'Could not initialize bid draft.');
+      }
+
+      // 2. Save Technical Proposal
+      const techPayload = {
+        methodology: bidForm.methodology || 'Technical execution methodology conforming with tender requirements.',
+        technical_description: bidForm.methodology || 'Full technical compliance plan',
+        delivery_plan: bidForm.delivery_plan || 'As per tender schedule',
+        compliance_statement: bidForm.compliance_statement || 'Full compliance affirmed.'
+      };
+      await bidsApi.saveTechnicalBid(createdBidId, techPayload);
+
+      // 3. Save Financial Proposal
+      const totalNum = parseFloat(bidForm.total_amount) || 0;
+      const taxNum = parseFloat(bidForm.tax_amount) || 0;
+      const discNum = parseFloat(bidForm.discount) || 0;
+      const finalNum = Math.max(0, totalNum + taxNum - discNum);
+
+      const finPayload = {
+        currency: bidForm.currency || 'INR',
+        total_amount: totalNum,
+        tax_amount: taxNum,
+        discount: discNum,
+        final_amount: finalNum
+      };
+      await bidsApi.saveFinancialBid(createdBidId, finPayload);
+
+      // 4. Submit Bid (seals dual-envelope)
+      const submitRes = await bidsApi.submitBid(createdBidId);
+
+      setSubmittedBidResult({
+        ...submitRes.data,
+        bid_reference: submitRes.data?.bid_reference || bidRes.data?.bid_reference,
+        final_amount: finalNum,
+        currency: bidForm.currency || 'INR',
+        id: createdBidId
+      });
+
+      // Reload dashboard
+      await loadDashboard();
+
+      // Advance to Step 3: Success screen!
+      setWizardStep(3);
+    } catch (err) {
+      setSubmissionError(err.message || 'Bid submission failed. Please verify your details and try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleViewBid = (bidId) => {
     setSelectedBidId(bidId);
     setView('detail');
   };
@@ -138,74 +252,71 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.02em' }}>
-            🏛️ Bid Management & Secure Submission Portal
+            🏛️ Bid Management &amp; Proposal Submission Portal
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-            Two-Envelope Sealed Bidding • Technical & Financial Proposal Management
+            Two-Envelope Sealed Bidding • Enter Quote, Verify Details, and Submit Proposals
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          {(isVendor || (!isVendor && user)) && (
-            <button onClick={loadTenders} className="btn-action" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', background: 'linear-gradient(135deg, var(--primary) 0%, #818cf8 100%)' }}>
-              + Create New Bid
-            </button>
-          )}
+          <button
+            onClick={openCreateWizard}
+            className="btn-action"
+            style={{
+              padding: '0.55rem 1.25rem',
+              fontSize: '0.85rem',
+              fontWeight: '700',
+              background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+              boxShadow: '0 4px 12px rgba(249, 115, 22, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem'
+            }}
+          >
+            <span>+ Create New Bid</span>
+          </button>
           {!isVendor && (
-            <button onClick={() => { setSelectedTenderId(null); setView('opening'); }} className="btn-action" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', background: 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)' }}>
+            <button
+              onClick={() => { setSelectedTenderId(null); setView('opening'); }}
+              className="btn-action"
+              style={{ padding: '0.55rem 1rem', fontSize: '0.85rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
               🔓 Bid Opening Panel
             </button>
           )}
         </div>
       </div>
 
-      {/* Metrics Cards */}
+      {/* KPI Cards */}
       {dashboard && (
-        <motion.div 
-          className="grid-4" 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ type: 'spring', stiffness: 150, damping: 20 }}
-        >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
           {[
-            { label: 'Total Bids', value: dashboard.total_bids, color: '#60a5fa', icon: '📋' },
-            { label: 'Submitted', value: dashboard.submitted_bids, color: '#34d399', icon: '✅' },
-            { label: 'Under Evaluation', value: dashboard.under_evaluation_bids, color: '#fbbf24', icon: '⚖️' },
-            { label: 'Awarded', value: dashboard.awarded_bids, color: '#10b981', icon: '🏆' },
-          ].map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              className="glass-card"
-              style={{ padding: '1.25rem', borderLeft: `3px solid ${stat.color}` }}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.08, type: 'spring', stiffness: 150, damping: 20 }}
-              whileHover={{ y: -2, boxShadow: `0 8px 24px ${stat.color}22` }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{stat.label}</span>
-                <span style={{ fontSize: '1.25rem' }}>{stat.icon}</span>
-              </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: '800', color: stat.color }}>
-                {loading ? '—' : (stat.value ?? 0)}
-              </div>
+            { label: 'Total Bids', value: dashboard.total_bids || 0, color: 'var(--primary)' },
+            { label: 'Draft', value: dashboard.draft_bids || 0, color: '#94a3b8' },
+            { label: 'Submitted', value: dashboard.submitted_bids || 0, color: 'var(--emerald)' },
+            { label: 'Under Eval', value: dashboard.under_evaluation_bids || 0, color: '#38bdf8' },
+            { label: 'Awarded', value: dashboard.awarded_bids || 0, color: 'var(--emerald)' },
+            { label: 'Rejected', value: dashboard.rejected_bids || 0, color: '#ef4444' },
+          ].map((kpi, i) => (
+            <motion.div key={i} whileHover={{ y: -2 }} className="glass-card" style={{ padding: '1rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>{kpi.label}</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: '900', color: kpi.color, marginTop: '0.25rem' }}>{kpi.value}</div>
             </motion.div>
           ))}
-        </motion.div>
+        </div>
       )}
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+      <div className="glass-card" style={{ padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           type="text"
-          placeholder="Search by reference, vendor, tender..."
+          placeholder="Search by bid reference, tender, vendor..."
           value={filters.search}
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}
           style={{
-            flex: 1, padding: '0.5rem 0.75rem', borderRadius: '8px',
-            background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-muted)',
-            color: '#ffffff', fontSize: '0.85rem'
+            flex: '1', minWidth: '200px', padding: '0.5rem 0.75rem',
+            borderRadius: '8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-muted)',
+            color: '#fff', fontSize: '0.85rem',
           }}
         />
         <select
@@ -214,133 +325,79 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
           style={{
             padding: '0.5rem 0.75rem', borderRadius: '8px',
             background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-muted)',
-            color: '#ffffff', fontSize: '0.85rem'
+            color: '#fff', fontSize: '0.85rem',
           }}
         >
           <option value="">All Statuses</option>
-          <option value="DRAFT">Draft</option>
-          <option value="SUBMITTED">Submitted</option>
-          <option value="LOCKED">Locked</option>
-          <option value="TECHNICAL_OPENED">Technical Opened</option>
-          <option value="FINANCIAL_OPENED">Financial Opened</option>
-          <option value="AWARDED">Awarded</option>
-          <option value="REJECTED">Rejected</option>
-          <option value="WITHDRAWN">Withdrawn</option>
+          {Object.keys(STATUS_COLORS).map((s) => (
+            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+          ))}
         </select>
       </div>
 
-      {/* Bid Table */}
+      {/* Bids Table */}
       <div className="glass-card" style={{ overflow: 'hidden' }}>
-        <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-muted)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: '700' }}>
-            📋 Active Bids ({pagination.total || bids.length})
-          </h3>
-        </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-muted)', color: 'var(--text-muted)' }}>
-                <th style={{ padding: '0.75rem', textAlign: 'left' }}>Bid Reference</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left' }}>Tender</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left' }}>Vendor</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center' }}>Version</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center' }}>Docs</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center' }}>Deadline</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center' }}>Status</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center' }}>Actions</th>
+              <tr style={{ borderBottom: '1px solid var(--border-muted)', background: 'rgba(255,255,255,0.02)' }}>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: '700', color: 'var(--text-muted)' }}>Bid Reference</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: '700', color: 'var(--text-muted)' }}>Tender</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: '700', color: 'var(--text-muted)' }}>Vendor</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: '700', color: 'var(--text-muted)' }}>Status</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: '700', color: 'var(--text-muted)' }}>Docs</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: '700', color: 'var(--text-muted)' }}>Deadline</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: '700', color: 'var(--text-muted)' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <AnimatePresence>
-                {bids.map((bid, i) => {
-                  const deadline = bid.deadline_remaining;
-                  const deadlineInfo = deadline ? formatDeadline(deadline.remaining_seconds) : null;
-                  const sc = STATUS_COLORS[bid.status] || STATUS_COLORS.DRAFT;
-
-                  return (
-                    <motion.tr
-                      key={bid.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 10 }}
-                      transition={{ delay: i * 0.03 }}
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                      whileHover={{ background: 'rgba(255,255,255,0.03)' }}
-                    >
-                      <td style={{ padding: '0.75rem' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: '700', color: 'var(--primary)' }}>
-                          {bid.bid_reference}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>
-                        <div style={{ fontWeight: '600' }}>{bid.tender_title}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{bid.tender_number}</div>
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>{bid.vendor_name}</td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <span style={{ fontFamily: 'monospace' }}>v{bid.current_version}</span>
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <span>{bid.document_count}</span>
-                        {bid.has_technical && <span title="Technical"> ✅</span>}
-                        {bid.has_financial && <span title="Financial"> 🔒</span>}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        {deadlineInfo ? (
-                          <span style={{ 
-                            fontFamily: 'monospace', fontSize: '0.8rem',
-                            color: deadlineInfo.urgent ? '#ef4444' : 'var(--text-muted)',
-                            fontWeight: deadlineInfo.urgent ? '700' : '400',
-                          }}>
-                            {deadlineInfo.text}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-dim)' }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <span style={{
-                          padding: '0.2rem 0.6rem', borderRadius: '9999px', fontSize: '0.7rem',
-                          fontWeight: '700', background: sc.bg, color: sc.color,
-                          border: `1px solid ${sc.border}`,
-                        }}>
-                          {bid.status_display || bid.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
-                          <button
-                            onClick={() => handleViewBid(bid.id)}
-                            style={{
-                              padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem',
-                              background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)',
-                              color: '#60a5fa', cursor: 'pointer',
-                            }}
-                          >
-                            View
-                          </button>
-                          {bid.is_modifiable && (
-                            <button
-                              onClick={() => handleAmendBid(bid.id)}
-                              style={{
-                                padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem',
-                                background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)',
-                                color: '#fbbf24', cursor: 'pointer',
-                              }}
-                            >
-                              Amend
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </motion.tr>
-                  );
-                })}
-              </AnimatePresence>
-              {!loading && bids.length === 0 && (
+              {bids.map((b) => {
+                const sc = STATUS_COLORS[b.status] || STATUS_COLORS.DRAFT;
+                const dl = formatDeadline(b.deadline_remaining?.remaining_seconds);
+                return (
+                  <tr key={b.id} style={{ borderBottom: '1px solid var(--border-muted)' }} className="table-row-hover">
+                    <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontWeight: '700', color: '#f97316' }}>
+                      {b.bid_reference}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      <div style={{ fontWeight: '600' }}>{b.tender_title || b.tender?.title || 'Tender'}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{b.tender_number}</div>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)' }}>
+                      {b.vendor_name || 'Registered Vendor'}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                      <span style={{
+                        padding: '0.2rem 0.6rem', borderRadius: '9999px', fontSize: '0.7rem',
+                        fontWeight: '700', background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`,
+                      }}>
+                        {b.status_display || b.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      {b.document_count || 0}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: dl.urgent ? '#ef4444' : 'var(--text-muted)', fontWeight: dl.urgent ? '700' : '400' }}>
+                        {dl.text}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                      <button
+                        onClick={() => handleViewBid(b.id)}
+                        className="btn-action"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                      >
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {bids.length === 0 && !loading && (
                 <tr>
-                  <td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No bids found. {isVendor ? 'Create a bid for an active tender to get started.' : 'No bid records in the system.'}
+                  <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    No proposals submitted yet. Click "+ Create New Bid" above to submit your first proposal.
                   </td>
                 </tr>
               )}
@@ -349,80 +406,484 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
         </div>
       </div>
 
-      {/* Create Bid Modal */}
+      {/* Guided 4-Step Bid Submission Modal */}
       <AnimatePresence>
         {createModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setCreateModalOpen(false)}
+            onClick={() => {
+              if (!isSubmitting) setCreateModalOpen(false);
+            }}
             style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+              padding: '1rem', backdropFilter: 'blur(8px)'
             }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="glass-card"
-              style={{ padding: '1.5rem', width: '90%', maxWidth: '600px', maxHeight: '70vh', overflowY: 'auto' }}
+              style={{
+                padding: '2rem', width: '100%', maxWidth: '720px', maxHeight: '88vh',
+                overflowY: 'auto', background: '#0e131f', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '1.25rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+              }}
             >
-              <h3 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '1rem' }}>
-                Select Tender to Bid On
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {tenders.map((t) => (
-                  <motion.div
-                    key={t.id}
-                    whileHover={{ background: 'rgba(255,255,255,0.05)' }}
-                    style={{
-                      padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-muted)',
-                      cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    }}
-                    onClick={() => handleCreateBid(t.id)}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-                        <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>{t.title}</span>
-                        <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: t.status === 'ACTIVE' ? 'rgba(16,185,129,0.2)' : 'rgba(59,130,246,0.2)', color: t.status === 'ACTIVE' ? '#10b981' : '#60a5fa', fontWeight: 'bold' }}>
-                          {t.status}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t.tender_number} • {t.effective_org_name || t.organization_name || 'Procuring Entity'}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--emerald)' }}>
-                        {formatCurrency(t.budget, t.currency)}
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                        Deadline: {t.submission_deadline ? new Date(t.submission_deadline).toLocaleDateString() : 'N/A'}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-                {tenders.length === 0 && (
-                  <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1.5rem' }}>
-                    No published or active tenders available for bidding at this moment.
+              {/* Modal Top Header with Stepper */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Gavel style={{ width: '1.2rem', height: '1.2rem', color: '#f97316' }} />
+                    {wizardStep === 0 && 'Step 1: Select Tender to Bid On'}
+                    {wizardStep === 1 && 'Step 2: Enter Bid Quote & Proposal Details'}
+                    {wizardStep === 2 && 'Step 3: Reverify Details Before Submission'}
+                    {wizardStep === 3 && 'Bid Submission Complete'}
+                  </h3>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                    {wizardStep === 0 && 'Choose the open procurement solicitation you want to submit a formal bid for.'}
+                    {wizardStep === 1 && 'Specify your commercial pricing in INR and key technical execution terms.'}
+                    {wizardStep === 2 && 'Review your figures, confirm declarations, and execute dual-envelope sealing.'}
+                    {wizardStep === 3 && 'Your bid is cryptographically sealed and submitted to the evaluation escrow.'}
                   </p>
+                </div>
+                {!isSubmitting && (
+                  <button
+                    onClick={() => setCreateModalOpen(false)}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', cursor: 'pointer', padding: '0.4rem', borderRadius: '8px' }}
+                  >
+                    <X style={{ width: '1.1rem', height: '1.1rem' }} />
+                  </button>
                 )}
               </div>
-              <button
-                onClick={() => setCreateModalOpen(false)}
-                style={{
-                  marginTop: '1rem', width: '100%', padding: '0.5rem',
-                  borderRadius: '8px', border: '1px solid var(--border-muted)',
-                  background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
+
+              {/* Error Banner */}
+              {submissionError && (
+                <div style={{ padding: '0.75rem 1rem', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <AlertTriangle style={{ width: '1rem', height: '1rem', shrink: 0 }} />
+                  <span>{submissionError}</span>
+                </div>
+              )}
+
+              {/* ────────────────────────────────────────────── */}
+              {/* STEP 0: Select Tender                          */}
+              {/* ────────────────────────────────────────────── */}
+              {wizardStep === 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {tenders.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => handleSelectTender(t)}
+                      style={{
+                        padding: '1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(249,115,22,0.08)'; e.currentTarget.style.borderColor = 'rgba(249,115,22,0.4)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                    >
+                      <div style={{ maxWidth: '65%' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                          <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#fff' }}>{t.title}</span>
+                          <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(16,185,129,0.15)', color: '#34d399', fontWeight: 'bold' }}>
+                            {t.status || 'ACTIVE'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
+                          <span style={{ fontFamily: 'monospace', color: '#f97316', fontWeight: 'bold' }}>{t.tender_number}</span> • {t.effective_org_name || t.organization_name || 'Procurement Authority'}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.2rem' }}>
+                          Category: {t.category_name || 'General Procurement'}
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Allocated Budget</div>
+                        <div style={{ fontSize: '1rem', fontWeight: '800', color: '#10b981', fontFamily: 'monospace' }}>
+                          {formatCurrency(t.budget, t.currency)}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.2rem' }}>
+                          Deadline: {t.submission_deadline ? new Date(t.submission_deadline).toLocaleDateString() : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {tenders.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.4)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '12px' }}>
+                      <p style={{ fontWeight: '700', color: '#fff', marginBottom: '0.3rem' }}>No Active Tenders Found</p>
+                      <p style={{ fontSize: '0.8rem' }}>Create a tender solicitation first from the Tenders page.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ────────────────────────────────────────────── */}
+              {/* STEP 1: Enter Bid Amount & Details             */}
+              {/* ────────────────────────────────────────────── */}
+              {wizardStep === 1 && selectedTender && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Selected Tender Summary Pill */}
+                  <div style={{ padding: '0.9rem', borderRadius: '12px', background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.25)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: '#f97316', fontWeight: '700', textTransform: 'uppercase' }}>Selected Solicitation</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#fff' }}>{selectedTender.title}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>{selectedTender.tender_number}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Target Budget</div>
+                      <div style={{ fontSize: '1rem', fontWeight: '800', color: '#10b981', fontFamily: 'monospace' }}>
+                        {formatCurrency(selectedTender.budget, selectedTender.currency)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Financial Envelope Section */}
+                  <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                      <DollarSign style={{ width: '1rem', height: '1rem', color: '#10b981' }} />
+                      <span style={{ fontSize: '0.85rem', fontWeight: '800', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        1. Financial Proposal (Commercial Bid)
+                      </span>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: 'rgba(255,255,255,0.8)', marginBottom: '0.4rem' }}>
+                        Total Proposed Bid Amount (Quote in INR) *
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '0.85rem', top: '0.7rem', color: '#f97316', fontWeight: 'bold', fontSize: '0.9rem' }}>₹</span>
+                        <input
+                          type="number"
+                          placeholder="e.g. 45000000"
+                          value={bidForm.total_amount}
+                          onChange={(e) => setBidForm({ ...bidForm, total_amount: e.target.value })}
+                          style={{
+                            width: '100%', padding: '0.7rem 0.7rem 0.7rem 2.2rem', borderRadius: '8px',
+                            background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)',
+                            color: '#fff', fontSize: '1rem', fontFamily: 'monospace', fontWeight: '700'
+                          }}
+                        />
+                      </div>
+
+                      {/* Live Formatted Price Preview */}
+                      {bidForm.total_amount && (
+                        <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
+                          <span style={{ color: 'rgba(255,255,255,0.5)' }}>Formatted Preview:</span>
+                          <span style={{ color: '#10b981', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                            {formatCurrency(bidForm.total_amount, 'INR')} ({Number(bidForm.total_amount).toLocaleString('en-IN')})
+                          </span>
+                          {selectedTender.budget && (
+                            <span style={{
+                              fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px',
+                              background: Number(bidForm.total_amount) <= Number(selectedTender.budget) ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                              color: Number(bidForm.total_amount) <= Number(selectedTender.budget) ? '#34d399' : '#f87171',
+                              fontWeight: 'bold'
+                            }}>
+                              {Number(bidForm.total_amount) <= Number(selectedTender.budget)
+                                ? `Within Budget (${Math.round((1 - Number(bidForm.total_amount) / Number(selectedTender.budget)) * 100)}% savings)`
+                                : `Exceeds Budget (+${Math.round((Number(bidForm.total_amount) / Number(selectedTender.budget) - 1) * 100)}%)`}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.3rem' }}>
+                          Applicable Taxes / GST (INR)
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="e.g. 0"
+                          value={bidForm.tax_amount}
+                          onChange={(e) => setBidForm({ ...bidForm, tax_amount: e.target.value })}
+                          style={{
+                            width: '100%', padding: '0.55rem', borderRadius: '8px',
+                            background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#fff', fontSize: '0.85rem'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.3rem' }}>
+                          Offered Discount / Concession (INR)
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="e.g. 0"
+                          value={bidForm.discount}
+                          onChange={(e) => setBidForm({ ...bidForm, discount: e.target.value })}
+                          style={{
+                            width: '100%', padding: '0.55rem', borderRadius: '8px',
+                            background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#fff', fontSize: '0.85rem'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Technical Envelope Section */}
+                  <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                      <FileText style={{ width: '1rem', height: '1rem', color: '#f97316' }} />
+                      <span style={{ fontSize: '0.85rem', fontWeight: '800', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        2. Technical Proposal &amp; Execution Plan
+                      </span>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: 'rgba(255,255,255,0.8)', marginBottom: '0.4rem' }}>
+                        Technical Execution Methodology &amp; Approach *
+                      </label>
+                      <textarea
+                        rows={3}
+                        placeholder="Describe your technical methodology, standards compliance, project personnel, machinery, and quality control systems..."
+                        value={bidForm.methodology}
+                        onChange={(e) => setBidForm({ ...bidForm, methodology: e.target.value })}
+                        style={{
+                          width: '100%', padding: '0.6rem', borderRadius: '8px',
+                          background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)',
+                          color: '#fff', fontSize: '0.85rem', resize: 'vertical'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.3rem' }}>
+                          Delivery / Completion Schedule
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 180 Calendar Days / 6 Months"
+                          value={bidForm.delivery_plan}
+                          onChange={(e) => setBidForm({ ...bidForm, delivery_plan: e.target.value })}
+                          style={{
+                            width: '100%', padding: '0.55rem', borderRadius: '8px',
+                            background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#fff', fontSize: '0.85rem'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.3rem' }}>
+                          Specification Compliance Statement
+                        </label>
+                        <input
+                          type="text"
+                          value={bidForm.compliance_statement}
+                          onChange={(e) => setBidForm({ ...bidForm, compliance_statement: e.target.value })}
+                          style={{
+                            width: '100%', padding: '0.55rem', borderRadius: '8px',
+                            background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#fff', fontSize: '0.85rem'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(0)}
+                      className="btn-action"
+                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', padding: '0.6rem 1.25rem' }}
+                    >
+                      ← Back to Tenders
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!bidForm.total_amount || parseFloat(bidForm.total_amount) <= 0 || !bidForm.methodology.trim()}
+                      onClick={() => setWizardStep(2)}
+                      className="btn-action"
+                      style={{
+                        padding: '0.65rem 1.5rem', fontWeight: '700',
+                        background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                        opacity: (!bidForm.total_amount || parseFloat(bidForm.total_amount) <= 0 || !bidForm.methodology.trim()) ? 0.4 : 1,
+                        cursor: (!bidForm.total_amount || parseFloat(bidForm.total_amount) <= 0 || !bidForm.methodology.trim()) ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      <span>Reverify Details →</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ────────────────────────────────────────────── */}
+              {/* STEP 2: Reverify Details Before Submission     */}
+              {/* ────────────────────────────────────────────── */}
+              {wizardStep === 2 && selectedTender && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ padding: '1rem', borderRadius: '12px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', fontSize: '0.8rem', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Lock style={{ width: '1rem', height: '1rem', shrink: 0, color: '#60a5fa' }} />
+                    <span>Please reverify your proposal parameters below before sealing and final submission.</span>
+                  </div>
+
+                  {/* Verification Summary Card */}
+                  <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Target Solicitation</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#fff' }}>{selectedTender.title} ({selectedTender.tender_number})</span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Tender Authorized Budget</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#94a3b8', fontFamily: 'monospace' }}>
+                        {formatCurrency(selectedTender.budget, selectedTender.currency)}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 'bold' }}>Your Proposed Bid Quote</span>
+                      <span style={{ fontSize: '1.1rem', fontWeight: '900', color: '#10b981', fontFamily: 'monospace' }}>
+                        {formatCurrency(bidForm.total_amount, 'INR')}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Delivery / Completion Schedule</span>
+                      <span style={{ fontSize: '0.85rem', color: '#fff', fontWeight: '600' }}>{bidForm.delivery_plan || '180 Days'}</span>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.2rem' }}>Technical Methodology Summary</span>
+                      <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)', background: 'rgba(0,0,0,0.3)', padding: '0.6rem', borderRadius: '6px', lineHeight: '1.4' }}>
+                        {bidForm.methodology}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Declaration Checkbox */}
+                  <label style={{ display: 'flex', gap: '0.75rem', padding: '0.85rem', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={bidForm.declaredConfirmed}
+                      onChange={(e) => setBidForm({ ...bidForm, declaredConfirmed: e.target.checked })}
+                      style={{ marginTop: '0.2rem' }}
+                    />
+                    <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)', lineHeight: '1.4' }}>
+                      I confirm that all financial figures, technical methodologies, and delivery milestones provided in this proposal are authentic, legally binding, and comply fully with the tender specifications.
+                    </span>
+                  </label>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => setWizardStep(1)}
+                      className="btn-action"
+                      style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', padding: '0.6rem 1.25rem' }}
+                    >
+                      ← Back to Edit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSubmitting || !bidForm.declaredConfirmed}
+                      onClick={handleFinalSubmitBid}
+                      className="btn-action"
+                      style={{
+                        padding: '0.7rem 1.75rem', fontWeight: '800',
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)',
+                        opacity: (isSubmitting || !bidForm.declaredConfirmed) ? 0.4 : 1,
+                        cursor: (isSubmitting || !bidForm.declaredConfirmed) ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '0.5rem'
+                      }}
+                    >
+                      <Sparkles style={{ width: '1rem', height: '1rem' }} />
+                      <span>{isSubmitting ? 'Sealing & Submitting...' : '🚀 Submit Official Bid'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ────────────────────────────────────────────── */}
+              {/* STEP 3: Bid Submitted Success Screen           */}
+              {/* ────────────────────────────────────────────── */}
+              {wizardStep === 3 && (
+                <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
+                  <div style={{ width: '4rem', height: '4rem', borderRadius: '50%', background: 'rgba(16,185,129,0.15)', border: '2px solid rgba(16,185,129,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                    <CheckCircle2 style={{ width: '2.5rem', height: '2.5rem' }} />
+                  </div>
+
+                  <div>
+                    <h3 style={{ fontSize: '1.5rem', fontWeight: '900', color: '#fff', letterSpacing: '-0.02em' }}>
+                      Bid Submitted Successfully!
+                    </h3>
+                    <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                      Your proposal has been cryptographically sealed and registered in the procurement database.
+                    </p>
+                  </div>
+
+                  <div style={{ width: '100%', maxWidth: '440px', padding: '1.25rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Bid Reference ID</span>
+                      <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#f97316', fontSize: '0.9rem' }}>
+                        {submittedBidResult?.bid_reference || 'BID-REGISTERED'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Submission Status</span>
+                      <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(16,185,129,0.2)', color: '#34d399', fontWeight: 'bold' }}>
+                        SUBMITTED
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Quoted Price</span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#10b981', fontFamily: 'monospace' }}>
+                        {formatCurrency(submittedBidResult?.final_amount || bidForm.total_amount, 'INR')}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Sealed Envelopes</span>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)', fontWeight: '600' }}>
+                        🔒 Technical &amp; Financial Envelopes Locked
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    <button
+                      onClick={() => {
+                        setCreateModalOpen(false);
+                        if (submittedBidResult?.id) {
+                          handleViewBid(submittedBidResult.id);
+                        }
+                      }}
+                      className="btn-action"
+                      style={{ padding: '0.65rem 1.25rem', fontSize: '0.85rem', fontWeight: '700', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
+                    >
+                      View Bid Details
+                    </button>
+                    <button
+                      onClick={() => setCreateModalOpen(false)}
+                      className="btn-action"
+                      style={{ padding: '0.65rem 1.25rem', fontSize: '0.85rem', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}
+                    >
+                      Return to Bids Dashboard
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
     </motion.div>
   );
 }
