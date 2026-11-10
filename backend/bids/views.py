@@ -259,11 +259,29 @@ class BidListCreateView(APIView):
             is_deleted=False,
         ).exclude(status=BidStatus.WITHDRAWN).first()
         if existing_bid:
-            return Response({
-                "success": True,
-                "message": f"Resuming existing bid {existing_bid.bid_reference}",
-                "data": BidDetailSerializer(existing_bid).data
-            }, status=status.HTTP_200_OK)
+            if existing_bid.status == BidStatus.DRAFT:
+                return Response({
+                    "success": True,
+                    "message": f"Resuming existing draft bid {existing_bid.bid_reference}",
+                    "data": BidDetailSerializer(existing_bid).data
+                }, status=status.HTTP_200_OK)
+            elif user.role != UserRole.VENDOR:
+                # For administrators and tender managers testing the platform,
+                # provision a new distinct test bidder profile so they can submit multiple bids for evaluation
+                unit_num = Bid.objects.filter(tender=tender).count() + 1
+                base_name = vendor.company_name or getattr(user, 'organization_name', None) or 'Bidder'
+                vendor = Vendor.objects.create(
+                    company_name=f"{base_name} - Division {unit_num}",
+                    registration_number=f"VND-{uuid.uuid4().hex[:8].upper()}",
+                    email=f"bidder_{uuid.uuid4().hex[:6]}@tenderx.io",
+                    status=VendorStatus.VERIFIED,
+                )
+            else:
+                return Response({
+                    "success": False,
+                    "message": f"You have already submitted an official bid ({existing_bid.bid_reference}) for this tender. Please view your proposal to amend or withdraw.",
+                    "data": BidDetailSerializer(existing_bid).data
+                }, status=status.HTTP_409_CONFLICT)
 
         # Validate creation eligibility
         errors = BidLifecycleService.validate_creation(tender, vendor)

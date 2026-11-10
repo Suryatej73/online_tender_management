@@ -73,6 +73,7 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
 
   // Guided Bid Creation Wizard Modal State
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [loadingTenders, setLoadingTenders] = useState(false);
   const [wizardStep, setWizardStep] = useState(0); // 0: Select Tender, 1: Enter Bid Details, 2: Reverify, 3: Submitted
   const [tenders, setTenders] = useState([]);
   const [selectedTender, setSelectedTender] = useState(null);
@@ -81,7 +82,7 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
     currency: 'INR',
     tax_amount: '',
     discount: '',
-    methodology: '',
+    methodology: 'Standard engineering & technical execution conforming with tender technical requirements and BOQ items.',
     delivery_plan: '180 Calendar Days',
     compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
     declaredConfirmed: false,
@@ -110,26 +111,37 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
   const openCreateWizard = async () => {
+    // Open modal immediately so user sees immediate response
+    setCreateModalOpen(true);
+    setWizardStep(0);
+    setSelectedTender(null);
+    setSubmittedBidResult(null);
+    setSubmissionError('');
+    setLoadingTenders(true);
+    setBidForm({
+      total_amount: '',
+      currency: 'INR',
+      tax_amount: '',
+      discount: '',
+      methodology: 'Standard engineering & technical execution conforming with tender technical requirements and BOQ items.',
+      delivery_plan: '180 Calendar Days',
+      compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
+      declaredConfirmed: false,
+    });
+
     try {
-      const res = await tendersApi.getTenders({ status: 'OPEN', limit: 50 });
-      setTenders(res.data || []);
-      setWizardStep(0);
-      setSelectedTender(null);
-      setBidForm({
-        total_amount: '',
-        currency: 'INR',
-        tax_amount: '',
-        discount: '',
-        methodology: '',
-        delivery_plan: '180 Calendar Days',
-        compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
-        declaredConfirmed: false,
-      });
-      setSubmissionResult(null);
-      setSubmissionError('');
-      setCreateModalOpen(true);
+      // Fetch open solicitations
+      const res = await tendersApi.getTenders({ limit: 100 });
+      const list = res.data || [];
+      const eligible = list.filter(t =>
+        ['PUBLISHED', 'ACTIVE', 'DRAFT'].includes(t.status) || !t.status
+      );
+      setTenders(eligible.length > 0 ? eligible : list);
     } catch (err) {
       console.error('Failed to load tenders:', err);
+      setSubmissionError('Could not load tenders list. Please try again.');
+    } finally {
+      setLoadingTenders(false);
     }
   };
 
@@ -146,12 +158,12 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
               currency: 'INR',
               tax_amount: '',
               discount: '',
-              methodology: '',
+              methodology: 'Standard engineering & technical execution conforming with tender technical requirements and BOQ items.',
               delivery_plan: '180 Calendar Days',
               compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
               declaredConfirmed: false,
             });
-            setSubmissionResult(null);
+            setSubmittedBidResult(null);
             setSubmissionError('');
             setCreateModalOpen(true);
           }
@@ -474,51 +486,78 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
               {/* ────────────────────────────────────────────── */}
               {wizardStep === 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {tenders.map((t) => (
-                    <div
-                      key={t.id}
-                      onClick={() => handleSelectTender(t)}
-                      style={{
-                        padding: '1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(249,115,22,0.08)'; e.currentTarget.style.borderColor = 'rgba(249,115,22,0.4)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
-                    >
-                      <div style={{ maxWidth: '65%' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                          <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#fff' }}>{t.title}</span>
-                          <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(16,185,129,0.15)', color: '#34d399', fontWeight: 'bold' }}>
-                            {t.status || 'ACTIVE'}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
-                          <span style={{ fontFamily: 'monospace', color: '#f97316', fontWeight: 'bold' }}>{t.tender_number}</span> • {t.effective_org_name || t.organization_name || 'Procurement Authority'}
-                        </div>
-                        <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.2rem' }}>
-                          Category: {t.category_name || 'General Procurement'}
-                        </div>
-                      </div>
-
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Allocated Budget</div>
-                        <div style={{ fontSize: '1rem', fontWeight: '800', color: '#10b981', fontFamily: 'monospace' }}>
-                          {formatCurrency(t.budget, t.currency)}
-                        </div>
-                        <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.2rem' }}>
-                          Deadline: {t.submission_deadline ? new Date(t.submission_deadline).toLocaleDateString() : 'N/A'}
-                        </div>
-                      </div>
+                  {loadingTenders ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.6)' }}>
+                      <div style={{
+                        margin: '0 auto 1rem', width: '2.5rem', height: '2.5rem',
+                        border: '3px solid rgba(255,255,255,0.15)',
+                        borderTopColor: '#f97316', borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite'
+                      }} />
+                      <p style={{ fontSize: '0.9rem', fontWeight: '600', color: '#fff' }}>Loading Solicitations...</p>
                     </div>
-                  ))}
+                  ) : (
+                    <>
+                      {tenders.map((t) => (
+                        <div
+                          key={t.id}
+                          onClick={() => handleSelectTender(t)}
+                          style={{
+                            padding: '1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(249,115,22,0.08)'; e.currentTarget.style.borderColor = 'rgba(249,115,22,0.4)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                        >
+                          <div style={{ maxWidth: '65%' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                              <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#fff' }}>{t.title}</span>
+                              <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(16,185,129,0.15)', color: '#34d399', fontWeight: 'bold' }}>
+                                {t.status || 'ACTIVE'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
+                              <span style={{ fontFamily: 'monospace', color: '#f97316', fontWeight: 'bold' }}>{t.tender_number}</span> • {t.effective_org_name || t.organization_name || 'Procurement Authority'}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.2rem' }}>
+                              Category: {t.category_name || 'General Procurement'}
+                            </div>
+                          </div>
 
-                  {tenders.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.4)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '12px' }}>
-                      <p style={{ fontWeight: '700', color: '#fff', marginBottom: '0.3rem' }}>No Active Tenders Found</p>
-                      <p style={{ fontSize: '0.8rem' }}>Create a tender solicitation first from the Tenders page.</p>
-                    </div>
+                          <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Allocated Budget</div>
+                            <div style={{ fontSize: '1rem', fontWeight: '800', color: '#10b981', fontFamily: 'monospace' }}>
+                              {formatCurrency(t.budget, t.currency)}
+                            </div>
+                            <button
+                              type="button"
+                              className="btn-action"
+                              style={{
+                                marginTop: '0.25rem',
+                                padding: '0.3rem 0.75rem',
+                                fontSize: '0.75rem',
+                                background: 'rgba(249,115,22,0.15)',
+                                color: '#f97316',
+                                border: '1px solid rgba(249,115,22,0.3)',
+                                borderRadius: '6px',
+                                fontWeight: '700'
+                              }}
+                            >
+                              Select &amp; Bid →
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {tenders.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.4)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '12px' }}>
+                          <p style={{ fontWeight: '700', color: '#fff', marginBottom: '0.3rem' }}>No Active Tenders Found</p>
+                          <p style={{ fontSize: '0.8rem' }}>Create a tender solicitation first from the Tenders page.</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
