@@ -176,13 +176,18 @@ function TenderXApp() {
           {activeTab === 'dashboard' && (
             <PurityDashboardView
               dashboardData={dashboard}
+              currentUser={user}
               onNavigateToTenders={(tenderId) => {
                 if (tenderId) {
                   setInspectTenderId(tenderId);
                 }
                 setActiveTab('tenders');
               }}
+              onNavigateToBids={() => setActiveTab('bids')}
+              onNavigateToEvaluations={() => setActiveTab('evaluations')}
+              onNavigateToVendors={() => setActiveTab('vendors')}
               onNavigateToDocuments={() => setActiveTab('documents')}
+              onRefresh={loadDashboard}
             />
           )}
 

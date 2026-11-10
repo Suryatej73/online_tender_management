@@ -1,5 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+import { getAuthToken, tryRefreshToken, ensureAuthToken } from './tendersApi';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 async function handleResponse(response) {
   if (!response.ok) {
@@ -19,17 +20,32 @@ async function handleResponse(response) {
   return response.json();
 }
 
-function getAuthHeaders() {
-  let token = localStorage.getItem('access_token');
-  if (!token) {
-    const tenderxTokens = localStorage.getItem('tenderx_tokens');
-    if (tenderxTokens) {
-      try {
-        const parsed = JSON.parse(tenderxTokens);
-        token = parsed.access || parsed.token;
-      } catch (e) {}
+async function fetchWithAuth(url, options = {}) {
+  let token = await ensureAuthToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+
+  let response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    const refreshedToken = await tryRefreshToken();
+    if (refreshedToken) {
+      const retryHeaders = {
+        ...headers,
+        'Authorization': `Bearer ${refreshedToken}`
+      };
+      response = await fetch(url, { ...options, headers: retryHeaders });
     }
   }
+
+  return handleResponse(response);
+}
+
+function getAuthHeaders() {
+  const token = getAuthToken();
   return {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -37,16 +53,7 @@ function getAuthHeaders() {
 }
 
 function getMultipartHeaders() {
-  let token = localStorage.getItem('access_token');
-  if (!token) {
-    const tenderxTokens = localStorage.getItem('tenderx_tokens');
-    if (tenderxTokens) {
-      try {
-        const parsed = JSON.parse(tenderxTokens);
-        token = parsed.access || parsed.token;
-      } catch (e) {}
-    }
-  }
+  const token = getAuthToken();
   return {
     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
   };
@@ -55,10 +62,7 @@ function getMultipartHeaders() {
 export const bidsApi = {
   // ────────────── Dashboard ──────────────
   async getDashboard() {
-    const response = await fetch(`${API_BASE_URL}/bids/dashboard/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/dashboard/`);
   },
 
   // ────────────── Bid CRUD ──────────────
@@ -70,80 +74,58 @@ export const bidsApi = {
     if (filters.page) query.append('page', filters.page);
     if (filters.limit) query.append('limit', filters.limit);
 
-    const response = await fetch(`${API_BASE_URL}/bids/?${query.toString()}`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/?${query.toString()}`);
   },
 
   async createBid(tenderId, vendorId = null) {
     const body = { tender_id: tenderId };
     if (vendorId) body.vendor_id = vendorId;
-    const response = await fetch(`${API_BASE_URL}/bids/`, {
+    return fetchWithAuth(`${API_BASE_URL}/bids/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify(body)
     });
-    return handleResponse(response);
   },
 
   async getBidDetail(bidId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/`);
   },
 
   async updateBid(bidId, data) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/`, {
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/`, {
       method: 'PATCH',
-      headers: getAuthHeaders(),
       body: JSON.stringify(data)
     });
-    return handleResponse(response);
   },
 
   // ────────────── Submission ──────────────
   async submitBid(bidId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/submit/`, {
-      method: 'POST',
-      headers: getAuthHeaders()
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/submit/`, {
+      method: 'POST'
     });
-    return handleResponse(response);
   },
 
   // ────────────── Technical Bid ──────────────
   async getTechnicalBid(bidId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/technical/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/technical/`);
   },
 
   async saveTechnicalBid(bidId, data) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/technical/`, {
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/technical/`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
       body: JSON.stringify(data)
     });
-    return handleResponse(response);
   },
 
   // ────────────── Financial Bid ──────────────
   async getFinancialBid(bidId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/financial/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/financial/`);
   },
 
   async saveFinancialBid(bidId, data) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/financial/`, {
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/financial/`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
       body: JSON.stringify(data)
     });
-    return handleResponse(response);
   },
 
   // ────────────── Documents ──────────────
@@ -151,101 +133,73 @@ export const bidsApi = {
     const url = docType
       ? `${API_BASE_URL}/bids/${bidId}/documents/?type=${docType}`
       : `${API_BASE_URL}/bids/${bidId}/documents/`;
-    const response = await fetch(url, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(url);
   },
 
   async uploadBidDocument(bidId, docData) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/documents/`, {
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/documents/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify(docData)
     });
-    return handleResponse(response);
   },
 
   async deleteBidDocument(bidId, docId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/documents/${docId}/`, {
-      method: 'DELETE',
-      headers: getAuthHeaders()
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/documents/${docId}/`, {
+      method: 'DELETE'
     });
-    return handleResponse(response);
   },
 
   // ────────────── Amendment ──────────────
   async getAmendments(bidId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/amend/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/amend/`);
   },
 
   async createAmendment(bidId, amendmentData) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/amend/`, {
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/amend/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify(amendmentData)
     });
-    return handleResponse(response);
   },
 
   // ────────────── Withdrawal ──────────────
   async withdrawBid(bidId, reason) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/withdraw/`, {
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/withdraw/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify({ reason })
     });
-    return handleResponse(response);
   },
 
   // ────────────── Version History ──────────────
   async getBidVersions(bidId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/versions/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/versions/`);
   },
 
   // ────────────── Integrity ──────────────
   async getIntegrityStatus(bidId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/integrity/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/integrity/`);
   },
 
   async verifyIntegrity(bidId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/integrity/`, {
-      method: 'POST',
-      headers: getAuthHeaders()
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/integrity/`, {
+      method: 'POST'
     });
-    return handleResponse(response);
   },
 
   // ────────────── Bid Opening ──────────────
   async getOpeningStatus(tenderId) {
-    const response = await fetch(`${API_BASE_URL}/tenders/${tenderId}/opening/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${tenderId}/opening/`);
   },
 
   async executeOpeningAction(tenderId, action, notes = '') {
-    const response = await fetch(`${API_BASE_URL}/tenders/${tenderId}/opening/`, {
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${tenderId}/opening/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify({ action, notes })
     });
-    return handleResponse(response);
   },
 
   // ────────────── Audit Logs ──────────────
   async getBidAuditLogs(bidId) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/audit-logs/`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/audit-logs/`);
   },
 
   async getAllBidAuditLogs(filters = {}) {
@@ -253,28 +207,21 @@ export const bidsApi = {
     if (filters.action) query.append('action', filters.action);
     if (filters.actor) query.append('actor', filters.actor);
     if (filters.outcome) query.append('outcome', filters.outcome);
-    const response = await fetch(`${API_BASE_URL}/bids/audit-logs/?${query.toString()}`, {
-      headers: getAuthHeaders()
-    });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/bids/audit-logs/?${query.toString()}`);
   },
 
   // ────────────── Evaluation & Award ──────────────
   async evaluateBid(bidId, evaluationData = {}) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/evaluate/`, {
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/evaluate/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify(evaluationData)
     });
-    return handleResponse(response);
   },
 
   async awardBid(bidId, awardData = {}) {
-    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/award/`, {
+    return fetchWithAuth(`${API_BASE_URL}/bids/${bidId}/award/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify(awardData)
     });
-    return handleResponse(response);
   },
 };

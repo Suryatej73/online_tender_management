@@ -1,9 +1,24 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Search, Bell, Settings, User as UserIcon, LogOut,
   ChevronRight, ExternalLink, Check, Sparkles, AlertTriangle, ShieldCheck,
-  Sun, Moon
+  Sun, Moon, Award, FileText, CheckCircle2
 } from 'lucide-react';
+import { tendersApi } from '../../api/tendersApi';
+import { bidsApi } from '../../api/bidsApi';
+
+function formatTimeAgo(dateString) {
+  if (!dateString) return 'Just now';
+  try {
+    const diff = Math.floor((new Date() - new Date(dateString)) / 1000);
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  } catch {
+    return 'Recently';
+  }
+}
 
 export default function PurityNavbar({
   activeTab,
@@ -15,35 +30,106 @@ export default function PurityNavbar({
   onToggleTheme
 }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(3);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: 'New Bid Submitted',
-      description: 'Vendor Apex Global submitted technical & financial bid for TX-882.',
-      time: '12m ago',
-      read: false,
-      type: 'bid'
-    },
-    {
-      id: 2,
-      title: 'AI OCR Document Verified',
-      description: 'Document DOC-409 passed SHA-256 integrity & virus scan with zero findings.',
-      time: '1h ago',
-      read: false,
-      type: 'doc'
-    },
-    {
-      id: 3,
-      title: 'Tender Approaching Deadline',
-      description: 'Highway Modernization Phase II closes in 24 hours.',
-      time: '3h ago',
-      read: false,
-      type: 'tender'
-    }
-  ]);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const notifRef = useRef(null);
+
+  // Load real notifications from backend state (zero dummy data)
+  const loadNotifications = useCallback(async () => {
+    try {
+      const [tendersRes, bidsRes] = await Promise.all([
+        tendersApi.getTenders({ limit: 6 }).catch(() => ({ data: [] })),
+        bidsApi.getBids({ limit: 6 }).catch(() => ({ data: [] }))
+      ]);
+
+      const tList = tendersRes?.data || [];
+      const bList = bidsRes?.data || [];
+
+      const readIds = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('tenderx_read_notifs') || '[]');
+        } catch {
+          return [];
+        }
+      })();
+
+      const notifItems = [];
+
+      // Add real bid submission notifications
+      bList.slice(0, 4).forEach(b => {
+        const id = `bid_${b.id}`;
+        const tenderName = b.tender_title || b.tender?.title || b.tender_number || b.tender?.tender_number || 'solicitation';
+        const vendorName = b.vendor_name || b.vendor?.company_name || 'Vendor';
+        notifItems.push({
+          id,
+          title: `Proposal: ${b.bid_reference || 'Bid Submission'}`,
+          description: `${vendorName} submitted formal proposal for ${tenderName}`,
+          time: formatTimeAgo(b.created_at || b.submitted_at),
+          read: readIds.includes(id),
+          type: 'bid',
+          tab: 'evaluations',
+          timestamp: new Date(b.created_at || b.submitted_at || 0).getTime()
+        });
+      });
+
+      // Add real tender lifecycle notifications
+      tList.slice(0, 4).forEach(t => {
+        const id = `tender_${t.id}_${t.status}`;
+        let title = `Tender ${t.tender_number || ''}`;
+        let description = `${t.title || 'Solicitation'} is currently ${t.status || 'ACTIVE'}.`;
+        let type = 'tender';
+        let tab = 'tenders';
+
+        if (t.status === 'EVALUATION') {
+          title = `Evaluation Live: ${t.tender_number || ''}`;
+          description = `${t.title || 'Tender'} has closed bidding and is awaiting committee scoring.`;
+          tab = 'evaluations';
+          type = 'evaluation';
+        } else if (t.status === 'ACTIVE') {
+          title = `Active Solicitation: ${t.tender_number || ''}`;
+          description = `${t.title || 'Tender'} is open for vendor proposals.`;
+          tab = 'tenders';
+          type = 'active';
+        } else if (t.status === 'AWARDED') {
+          title = `Contract Awarded: ${t.tender_number || ''}`;
+          description = `Contract officially awarded to ${t.awarded_vendor_name || 'winning vendor'}.`;
+          tab = 'evaluations';
+          type = 'award';
+        } else if (t.status === 'PUBLISHED') {
+          title = `Published: ${t.tender_number || ''}`;
+          description = `${t.title || 'Tender'} published to public directory.`;
+          tab = 'tenders';
+          type = 'active';
+        }
+
+        notifItems.push({
+          id,
+          title,
+          description,
+          time: formatTimeAgo(t.created_at || t.updated_at),
+          read: readIds.includes(id),
+          type,
+          tab,
+          timestamp: new Date(t.created_at || t.updated_at || 0).getTime()
+        });
+      });
+
+      // Sort by newest first
+      notifItems.sort((a, b) => b.timestamp - a.timestamp);
+
+      setNotifications(notifItems);
+      setUnreadCount(notifItems.filter(n => !n.read).length);
+    } catch {
+      // Quiet failover
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -57,8 +143,28 @@ export default function PurityNavbar({
   }, []);
 
   const markAllRead = () => {
+    try {
+      const allIds = notifications.map(n => n.id);
+      localStorage.setItem('tenderx_read_notifs', JSON.stringify(allIds));
+    } catch {}
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
+  };
+
+  const handleNotificationClick = (notif) => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('tenderx_read_notifs') || '[]');
+      if (!stored.includes(notif.id)) {
+        stored.push(notif.id);
+        localStorage.setItem('tenderx_read_notifs', JSON.stringify(stored));
+      }
+    } catch {}
+    setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+    setNotificationsOpen(false);
+    if (onTabChange && notif.tab) {
+      onTabChange(notif.tab);
+    }
   };
 
   const getTabTitle = (tab) => {
@@ -67,12 +173,11 @@ export default function PurityNavbar({
       case 'tenders': return 'Tenders & BOQs';
       case 'bids': return 'Bids & Submissions';
       case 'vendors': return 'Vendor Management';
-      case 'documents': return 'Documents'; // strictly "Documents"
-      case 'evaluations': return 'Evaluations & Audits';
-      case 'users': return 'User Management';
+      case 'documents': return 'Documents';
+      case 'evaluations': return 'Evaluations & Awards';
+      case 'users': return 'User Directory';
       case 'rbac': return 'RBAC Permissions';
       case 'profile': return 'User Profile & Security';
-      case 'system': return 'System Telemetry';
       default: return 'Overview';
     }
   };
@@ -102,7 +207,7 @@ export default function PurityNavbar({
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-white/40" />
           <input
             type="text"
-            placeholder="Search tenders, docs, vendors..."
+            placeholder="Search tenders, bids, vendors..."
             className="w-full pl-9 pr-10 py-1.5 rounded-xl border border-white/10 text-xs focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/30 bg-[#0d1117]/80 text-white placeholder:text-white/30 shadow-inner"
           />
           <kbd className="absolute right-2.5 top-2 px-1.5 py-0.5 text-[10px] font-mono text-white/40 bg-white/5 border border-white/10 rounded">
@@ -110,7 +215,7 @@ export default function PurityNavbar({
           </kbd>
         </div>
 
-        {/* Theme Mode Switcher (Dark / Light) */}
+        {/* Theme Mode Switcher */}
         {onToggleTheme && (
           <button
             onClick={onToggleTheme}
@@ -142,12 +247,12 @@ export default function PurityNavbar({
           <span className="hidden md:inline">Explore Mode</span>
         </button>
 
-        {/* Notification Bell Dropdown */}
+        {/* Notification Bell Dropdown (Real live backend events) */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             className="relative p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/70 hover:text-white transition shadow-xs"
-            title="Notifications"
+            title="Procurement Notifications"
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
@@ -162,10 +267,14 @@ export default function PurityNavbar({
             <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-[#0d1117] border border-white/10 shadow-2xl p-4 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-white">Notifications</span>
-                  {unreadCount > 0 && (
+                  <span className="font-bold text-sm text-white">Live Procurement Alerts</span>
+                  {unreadCount > 0 ? (
                     <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] font-bold border border-orange-500/30">
                       {unreadCount} new
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full bg-white/5 text-slate-400 text-[10px] font-medium border border-white/10">
+                      Up to date
                     </span>
                   )}
                 </div>
@@ -180,38 +289,49 @@ export default function PurityNavbar({
               </div>
 
               <div className="divide-y divide-white/[0.05] max-h-72 overflow-y-auto my-2">
-                {notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className={`py-3 px-2 rounded-xl transition cursor-pointer flex gap-3 ${
-                      n.read ? 'opacity-60 hover:bg-white/[0.02]' : 'bg-white/[0.03] hover:bg-white/[0.06]'
-                    }`}
-                  >
-                    <div className="mt-0.5">
-                      {n.type === 'bid' && <Sparkles className="w-4 h-4 text-orange-400" />}
-                      {n.type === 'doc' && <ShieldCheck className="w-4 h-4 text-emerald-400" />}
-                      {n.type === 'tender' && <AlertTriangle className="w-4 h-4 text-amber-400" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-bold text-white truncate">{n.title}</p>
-                        <span className="text-[10px] text-white/40 whitespace-nowrap">{n.time}</span>
-                      </div>
-                      <p className="text-[11px] text-white/60 mt-0.5 leading-relaxed">{n.description}</p>
-                    </div>
+                {notifications.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400 space-y-1">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto" />
+                    <p className="font-semibold text-white">All caught up!</p>
+                    <p className="text-[11px]">No unread procurement alerts right now.</p>
                   </div>
-                ))}
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => handleNotificationClick(n)}
+                      className={`py-3 px-2.5 rounded-xl transition cursor-pointer flex gap-3 ${
+                        n.read ? 'opacity-60 hover:bg-white/[0.03]' : 'bg-white/[0.04] hover:bg-white/[0.08]'
+                      }`}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        {n.type === 'bid' && <Sparkles className="w-4 h-4 text-orange-400" />}
+                        {n.type === 'award' && <Award className="w-4 h-4 text-emerald-400" />}
+                        {n.type === 'evaluation' && <AlertTriangle className="w-4 h-4 text-purple-400" />}
+                        {n.type === 'active' && <FileText className="w-4 h-4 text-sky-400" />}
+                        {n.type === 'tender' && <FileText className="w-4 h-4 text-slate-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-bold text-white truncate">{n.title}</p>
+                          <span className="text-[10px] text-white/40 whitespace-nowrap">{n.time}</span>
+                        </div>
+                        <p className="text-[11px] text-white/70 mt-0.5 leading-relaxed">{n.description}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
 
               <div className="pt-2 border-t border-white/[0.08] text-center">
                 <button
                   onClick={() => {
                     setNotificationsOpen(false);
-                    if (onTabChange) onTabChange('system');
+                    if (onTabChange) onTabChange('evaluations');
                   }}
-                  className="text-[11px] text-white/50 hover:text-white font-medium transition"
+                  className="text-[11px] text-orange-400 hover:text-orange-300 font-medium transition"
                 >
-                  View full security & audit stream →
+                  Open Committee Evaluation Board →
                 </button>
               </div>
             </div>
@@ -223,29 +343,20 @@ export default function PurityNavbar({
           <button
             onClick={() => onTabChange && onTabChange('profile')}
             className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 shadow-xs text-xs font-semibold text-white/90 transition text-left"
-            title="Open Profile Settings"
           >
-            <div className="w-6 h-6 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center font-bold text-[11px]">
+            <div className="w-6 h-6 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center font-bold text-[11px]">
               {currentUser.email ? currentUser.email.charAt(0).toUpperCase() : 'U'}
             </div>
-            <div className="hidden md:flex flex-col">
-              <span className="truncate max-w-[110px] font-bold text-white text-[11px]">
-                {currentUser.full_name || currentUser.username || currentUser.email}
+            <div className="hidden md:block leading-none">
+              <span className="block text-white font-bold truncate max-w-[120px]">
+                {currentUser.full_name || currentUser.username || 'User'}
               </span>
-              <span className="text-[9px] text-orange-400 font-mono tracking-wider">
-                {currentUser.role || 'USER'}
+              <span className="text-[10px] text-white/40 font-mono">
+                {currentUser.role || 'Member'}
               </span>
             </div>
           </button>
-        ) : (
-          <button
-            onClick={onExploreClick}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold transition shadow-md shadow-orange-500/20"
-          >
-            <UserIcon className="w-3.5 h-3.5" />
-            <span>Sign In</span>
-          </button>
-        )}
+        ) : null}
       </div>
     </header>
   );
