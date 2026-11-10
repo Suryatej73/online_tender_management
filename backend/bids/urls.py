@@ -5,6 +5,7 @@ from .views import (
     BidDocumentListCreateView, BidDocumentDetailView,
     BidAmendView, BidWithdrawView, BidVersionHistoryView,
     BidOpeningView, BidAccessLogView, BidIntegrityView,
+    BidEvaluateView, BidAwardView,
 )
 
 urlpatterns = [
@@ -36,6 +37,10 @@ urlpatterns = [
 
     # Version History
     path('bids/<uuid:pk>/versions/', BidVersionHistoryView.as_view(), name='bid_versions'),
+
+    # Evaluation & Award
+    path('bids/<uuid:pk>/evaluate/', BidEvaluateView.as_view(), name='bid_evaluate'),
+    path('bids/<uuid:pk>/award/', BidAwardView.as_view(), name='bid_award'),
 
     # Integrity Verification
     path('bids/<uuid:pk>/integrity/', BidIntegrityView.as_view(), name='bid_integrity'),

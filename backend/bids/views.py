@@ -1172,3 +1172,154 @@ class BidIntegrityView(APIView):
             "message": message,
             "data": BidIntegrityRecordSerializer(record).data if record else None
         }, status=status.HTTP_200_OK if passed else status.HTTP_400_BAD_REQUEST)
+
+
+# ──────────────────────────────────────────────
+# BID EVALUATION & CONTRACT AWARD
+# ──────────────────────────────────────────────
+
+class BidEvaluateView(APIView):
+    """
+    Score and submit evaluator remarks for a bid.
+    Supports technical score (0-100), remarks, and status update.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk):
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return Response({"success": False, "message": "Authentication required."},
+                          status=status.HTTP_401_UNAUTHORIZED)
+
+        allowed_roles = [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.TENDER_MANAGER, UserRole.EVALUATOR]
+        if getattr(user, 'role', None) not in allowed_roles:
+            return Response({"success": False, "message": "Permission denied: Evaluator or Manager role required."},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            bid = Bid.objects.get(id=pk, is_deleted=False)
+        except Bid.DoesNotExist:
+            return Response({"success": False, "message": "Bid not found."},
+                          status=status.HTTP_404_NOT_FOUND)
+
+        data = get_request_data(request)
+        score = data.get('technical_score', data.get('score'))
+        remarks = data.get('evaluation_remarks', data.get('remarks', ''))
+        action = data.get('action', 'evaluate')
+
+        tech_bid, _ = TechnicalBid.objects.get_or_create(bid=bid)
+        if score is not None and str(score).strip() != '':
+            try:
+                tech_bid.technical_score = float(score)
+            except (ValueError, TypeError):
+                return Response({"success": False, "message": "Invalid technical score format."},
+                              status=status.HTTP_400_BAD_REQUEST)
+        if remarks:
+            tech_bid.evaluation_remarks = remarks
+        tech_bid.evaluated_by = user
+        tech_bid.evaluated_at = timezone.now()
+        tech_bid.save()
+
+        if action == 'disqualify':
+            bid.status = BidStatus.DISQUALIFIED
+        elif action == 'reject':
+            bid.status = BidStatus.REJECTED
+        else:
+            bid.status = BidStatus.EVALUATED
+        bid.save(update_fields=['status'])
+
+        BidAccessLog.log(
+            bid=bid, actor=user,
+            action=f"BID_EVALUATED_{action.upper()}",
+            resource_id=str(bid.id),
+            metadata={'score': str(score), 'remarks': remarks, 'action': action},
+            request=request,
+        )
+
+        return Response({
+            "success": True,
+            "message": f"Bid evaluation recorded successfully (Status: {bid.status})",
+            "data": BidDetailSerializer(bid).data
+        }, status=status.HTTP_200_OK)
+
+
+class BidAwardView(APIView):
+    """
+    Award contract to a winning bid for a tender.
+    Transitions winning bid to AWARDED, marks other bids as REJECTED,
+    and transitions the parent tender to AWARDED.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    @transaction.atomic
+    def post(self, request, pk):
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return Response({"success": False, "message": "Authentication required."},
+                          status=status.HTTP_401_UNAUTHORIZED)
+
+        allowed_roles = [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.TENDER_MANAGER]
+        if getattr(user, 'role', None) not in allowed_roles:
+            return Response({"success": False, "message": "Permission denied: Tender Manager or Admin role required to award contracts."},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            bid = Bid.objects.get(id=pk, is_deleted=False)
+        except Bid.DoesNotExist:
+            return Response({"success": False, "message": "Bid not found."},
+                          status=status.HTTP_404_NOT_FOUND)
+
+        tender = bid.tender
+        data = get_request_data(request)
+        award_notes = data.get('notes', data.get('award_notes', 'Contract awarded by evaluation committee'))
+
+        # Set winning bid
+        bid.status = BidStatus.AWARDED
+        bid.notes = f"{bid.notes or ''}\n[AWARD]: {award_notes}".strip()
+        bid.save(update_fields=['status', 'notes'])
+
+        # Reject other active bids for this tender
+        Bid.objects.filter(
+            tender=tender,
+            is_deleted=False
+        ).exclude(id=bid.id).exclude(status__in=[BidStatus.WITHDRAWN, BidStatus.DISQUALIFIED]).update(
+            status=BidStatus.REJECTED
+        )
+
+        # Transition tender to AWARDED
+        tender.status = TenderStatus.AWARDED
+        tender.award_date = timezone.now()
+        tender.save()
+
+        # Add tender history
+        try:
+            from tenders.models import TenderStatusHistory
+            TenderStatusHistory.objects.create(
+                tender=tender,
+                from_status=TenderStatus.EVALUATION,
+                to_status=TenderStatus.AWARDED,
+                changed_by=user,
+                reason=f"Contract awarded to {bid.vendor.company_name} (Bid {bid.bid_reference}): {award_notes}"
+            )
+        except Exception:
+            pass
+
+        BidAccessLog.log(
+            bid=bid, actor=user,
+            action="CONTRACT_AWARDED",
+            resource_id=str(bid.id),
+            resource_reference=tender.tender_number,
+            metadata={'tender_id': str(tender.id), 'vendor': bid.vendor.company_name, 'notes': award_notes},
+            request=request,
+        )
+
+        return Response({
+            "success": True,
+            "message": f"Contract officially awarded to {bid.vendor.company_name} for tender {tender.tender_number}!",
+            "data": {
+                "bid": BidDetailSerializer(bid).data,
+                "tender_number": tender.tender_number,
+                "awarded_vendor": bid.vendor.company_name,
+                "status": "AWARDED"
+            }
+        }, status=status.HTTP_200_OK)

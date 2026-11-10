@@ -258,4 +258,23 @@ export const bidsApi = {
     });
     return handleResponse(response);
   },
+
+  // ────────────── Evaluation & Award ──────────────
+  async evaluateBid(bidId, evaluationData = {}) {
+    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/evaluate/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(evaluationData)
+    });
+    return handleResponse(response);
+  },
+
+  async awardBid(bidId, awardData = {}) {
+    const response = await fetch(`${API_BASE_URL}/bids/${bidId}/award/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(awardData)
+    });
+    return handleResponse(response);
+  },
 };
