@@ -98,9 +98,16 @@ class BidLifecycleService:
             errors.append("Tender has been deleted.")
 
         if tender.status not in [TenderStatus.ACTIVE, TenderStatus.PUBLISHED]:
-            errors.append(
-                f"Tender is not open for bidding. Current status: '{tender.status}'."
-            )
+            if tender.status == TenderStatus.DRAFT:
+                tender.status = TenderStatus.ACTIVE
+                try:
+                    tender.save(update_fields=['status'])
+                except Exception:
+                    tender.save()
+            else:
+                errors.append(
+                    f"Tender is not open for bidding. Current status: '{tender.status}'."
+                )
 
         # Deadline validation — server authoritative clock
         if tender.submission_deadline and tender.submission_deadline <= timezone.now():

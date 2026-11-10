@@ -307,20 +307,22 @@ class TenderListCreateView(APIView):
 
             if tender is None:
                 user_id_str = str(getattr(request.user, 'id', '')) if hasattr(request, 'user') and request.user.is_authenticated else None
+                tender_initial_status = data.get('status') or TenderStatus.ACTIVE
                 tender = Tender.objects.create(
                     tender_number=tender_number,
                     title=data.get('title', 'Untitled Tender'),
                     description=data.get('description', ''),
-                    status=TenderStatus.DRAFT,
+                    status=tender_initial_status,
                     budget=data.get('budget') or 0.00,
                     currency=data.get('currency', 'USD'),
                     created_by_id=user_id_str,
                     organization=request.user.organization if hasattr(request, 'user') and request.user.is_authenticated and hasattr(request.user, 'organization') else None
                 )
             else:
+                tender_initial_status = data.get('status') or TenderStatus.ACTIVE
                 if not getattr(tender, 'tender_number', None) or tender.tender_number != tender_number:
                     tender.tender_number = tender_number
-                tender.status = TenderStatus.DRAFT
+                tender.status = tender_initial_status
                 if hasattr(request, 'user') and request.user.is_authenticated and not tender.created_by:
                     tender.created_by_id = str(request.user.id)
                 if hasattr(request, 'user') and request.user.is_authenticated and hasattr(request.user, 'organization') and request.user.organization and not tender.organization:
