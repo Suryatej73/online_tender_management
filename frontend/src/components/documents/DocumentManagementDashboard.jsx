@@ -70,10 +70,10 @@ export default function DocumentManagementDashboard({ currentUser }) {
           document_type: selectedType,
           status: selectedStatus,
           owner_type: selectedOwnerType,
-        }),
-        documentsApi.getDocumentTypes(),
-        documentsApi.getExpiringDocuments(30),
-        documentsApi.getTemplates(),
+        }).catch(() => ({ success: true, data: [] })),
+        documentsApi.getDocumentTypes().catch(() => ({ success: true, data: [] })),
+        documentsApi.getExpiringDocuments(30).catch(() => ({ success: true, data: [] })),
+        documentsApi.getTemplates().catch(() => ({ success: true, data: [] })),
         documentsApi.checkStorageHealth().catch(() => null)
       ]);
 

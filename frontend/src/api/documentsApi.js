@@ -1,4 +1,58 @@
-const BASE_URL = '/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
+export function getAuthToken() {
+  let token = localStorage.getItem('access_token');
+  if (token === 'null' || token === 'undefined' || token === '') {
+    token = null;
+  }
+  if (!token) {
+    const tenderxTokens = localStorage.getItem('tenderx_tokens');
+    if (tenderxTokens) {
+      try {
+        const parsed = JSON.parse(tenderxTokens);
+        token = parsed.access || parsed.token;
+        if (token === 'null' || token === 'undefined') token = null;
+      } catch (e) {}
+    }
+  }
+  return token;
+}
+
+export async function tryRefreshToken() {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.access) {
+        localStorage.setItem('access_token', data.access);
+        const tenderxTokens = localStorage.getItem('tenderx_tokens');
+        if (tenderxTokens) {
+          try {
+            const parsed = JSON.parse(tenderxTokens);
+            parsed.access = data.access;
+            localStorage.setItem('tenderx_tokens', JSON.stringify(parsed));
+          } catch (e) {}
+        }
+        return data.access;
+      }
+    }
+  } catch (err) {}
+  return null;
+}
+
+export async function ensureAuthToken() {
+  let token = getAuthToken();
+  if (!token) {
+    token = await tryRefreshToken();
+  }
+  return token;
+}
 
 async function handleResponse(response) {
   if (!response.ok) {
@@ -18,34 +72,35 @@ async function handleResponse(response) {
   return response.json();
 }
 
-function getAuthHeaders(isJson = true) {
-  let token = localStorage.getItem('access_token');
-  if (!token) {
-    const tenderxTokens = localStorage.getItem('tenderx_tokens');
-    if (tenderxTokens) {
-      try {
-        const parsed = JSON.parse(tenderxTokens);
-        token = parsed.access || parsed.token;
-      } catch (e) {}
+async function fetchWithAuth(url, options = {}) {
+  let token = await ensureAuthToken();
+  const isFormData = options.body instanceof FormData;
+  const headers = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+
+  let response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    const refreshedToken = await tryRefreshToken();
+    if (refreshedToken) {
+      const retryHeaders = {
+        ...headers,
+        'Authorization': `Bearer ${refreshedToken}`
+      };
+      response = await fetch(url, { ...options, headers: retryHeaders });
     }
   }
-  const headers = {};
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  if (isJson) {
-    headers['Content-Type'] = 'application/json';
-  }
-  return headers;
+
+  return handleResponse(response);
 }
 
 export const documentsApi = {
   // Document Types
   async getDocumentTypes() {
-    const res = await fetch(`${BASE_URL}/documents/types/`, {
-      headers: getAuthHeaders(true),
-    });
-    return handleResponse(res);
+    return fetchWithAuth(`${API_BASE_URL}/documents/types/`);
   },
 
   // Document List with filtering & search
@@ -56,162 +111,107 @@ export const documentsApi = {
         query.append(k, v);
       }
     });
-    const res = await fetch(`${BASE_URL}/documents/?${query.toString()}`, {
-      headers: getAuthHeaders(true),
-    });
-    return handleResponse(res);
+    return fetchWithAuth(`${API_BASE_URL}/documents/?${query.toString()}`);
   },
 
   // Document Detail
   async getDocumentDetail(id) {
-    const res = await fetch(`${BASE_URL}/documents/${id}/`, {
-      headers: getAuthHeaders(true),
-    });
-    return handleResponse(res);
+    return fetchWithAuth(`${API_BASE_URL}/documents/${id}/`);
   },
 
   // Secure Document Viewer Data
   async getViewerData(id) {
-    const res = await fetch(`${BASE_URL}/documents/${id}/viewer/`, {
-      headers: getAuthHeaders(true),
-    });
-    return handleResponse(res);
+    return fetchWithAuth(`${API_BASE_URL}/documents/${id}/viewer/`);
   },
 
   // Presigned Download URL
   async getDownloadUrl(id) {
-    const res = await fetch(`${BASE_URL}/documents/${id}/download/`, {
-      headers: getAuthHeaders(true),
-    });
-    return handleResponse(res);
+    return fetchWithAuth(`${API_BASE_URL}/documents/${id}/download/`);
   },
 
   // Single / Presigned Upload Workflow
   async initiateUpload(data) {
-    const res = await fetch(`${BASE_URL}/documents/upload/initiate/`, {
+    return fetchWithAuth(`${API_BASE_URL}/documents/upload/initiate/`, {
       method: 'POST',
-      headers: getAuthHeaders(true),
       body: JSON.stringify(data),
     });
-    return handleResponse(res);
   },
 
   async completeUpload(payload) {
-    let headers = {};
-    let body;
-    const token = localStorage.getItem('access_token');
-
-    if (payload instanceof FormData) {
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      body = payload;
-    } else {
-      headers = getAuthHeaders(true);
-      body = JSON.stringify(payload);
-    }
-
-    const res = await fetch(`${BASE_URL}/documents/upload/complete/`, {
+    const isFormData = payload instanceof FormData;
+    return fetchWithAuth(`${API_BASE_URL}/documents/upload/complete/`, {
       method: 'POST',
-      headers,
-      body,
+      body: isFormData ? payload : JSON.stringify(payload),
     });
-    return handleResponse(res);
   },
 
   // Upload New Version
   async uploadNewVersion(id, formData) {
-    const token = localStorage.getItem('access_token');
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const res = await fetch(`${BASE_URL}/documents/${id}/versions/`, {
+    return fetchWithAuth(`${API_BASE_URL}/documents/${id}/versions/`, {
       method: 'POST',
-      headers,
       body: formData,
     });
-    return handleResponse(res);
   },
 
   // Version History
   async getVersions(id) {
-    const res = await fetch(`${BASE_URL}/documents/${id}/versions/`, {
-      headers: getAuthHeaders(true),
-    });
-    return handleResponse(res);
+    return fetchWithAuth(`${API_BASE_URL}/documents/${id}/versions/`);
   },
 
   // Verification
   async verifyDocument(id, status, reason = '') {
-    const res = await fetch(`${BASE_URL}/documents/${id}/verify/`, {
+    return fetchWithAuth(`${API_BASE_URL}/documents/${id}/verify/`, {
       method: 'POST',
-      headers: getAuthHeaders(true),
       body: JSON.stringify({ status, reason }),
     });
-    return handleResponse(res);
   },
 
   // Archive / Restore
   async archiveDocument(id) {
-    const res = await fetch(`${BASE_URL}/documents/${id}/archive/`, {
+    return fetchWithAuth(`${API_BASE_URL}/documents/${id}/archive/`, {
       method: 'POST',
-      headers: getAuthHeaders(true),
     });
-    return handleResponse(res);
   },
 
   async restoreDocument(id) {
-    const res = await fetch(`${BASE_URL}/documents/${id}/restore/`, {
+    return fetchWithAuth(`${API_BASE_URL}/documents/${id}/restore/`, {
       method: 'POST',
-      headers: getAuthHeaders(true),
     });
-    return handleResponse(res);
   },
 
   // Delete
   async deleteDocument(id) {
-    const res = await fetch(`${BASE_URL}/documents/${id}/`, {
+    return fetchWithAuth(`${API_BASE_URL}/documents/${id}/`, {
       method: 'DELETE',
-      headers: getAuthHeaders(true),
     });
-    return handleResponse(res);
   },
 
   // Expiring Documents
   async getExpiringDocuments(days = 30) {
-    const res = await fetch(`${BASE_URL}/documents/expiring/?days=${days}`, {
-      headers: getAuthHeaders(true),
-    });
-    return handleResponse(res);
+    return fetchWithAuth(`${API_BASE_URL}/documents/expiring/?days=${days}`);
   },
 
   // Templates
   async getTemplates() {
-    const res = await fetch(`${BASE_URL}/documents/templates/`, {
-      headers: getAuthHeaders(true),
-    });
-    return handleResponse(res);
+    return fetchWithAuth(`${API_BASE_URL}/documents/templates/`);
   },
 
   async createTemplate(data) {
-    const res = await fetch(`${BASE_URL}/documents/templates/`, {
+    return fetchWithAuth(`${API_BASE_URL}/documents/templates/`, {
       method: 'POST',
-      headers: getAuthHeaders(true),
       body: JSON.stringify(data),
     });
-    return handleResponse(res);
   },
 
   async generateFromTemplate(id, data) {
-    const res = await fetch(`${BASE_URL}/documents/templates/${id}/generate/`, {
+    return fetchWithAuth(`${API_BASE_URL}/documents/templates/${id}/generate/`, {
       method: 'POST',
-      headers: getAuthHeaders(true),
       body: JSON.stringify(data),
     });
-    return handleResponse(res);
   },
 
   // Storage Health Check
   async checkStorageHealth() {
-    const res = await fetch(`${BASE_URL}/documents/health/storage/`);
-    return handleResponse(res);
+    return fetchWithAuth(`${API_BASE_URL}/documents/health/storage/`);
   }
 };

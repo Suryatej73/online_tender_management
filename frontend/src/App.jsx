@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import EvaluatorOversightPanel from './components/evaluators/EvaluatorOversightPanel';
+import EvaluationManagementDashboard from './components/evaluators/EvaluationManagementDashboard';
 import AdminControlCenter from './components/admin/AdminControlCenter';
 import AuthModal from './components/AuthModal';
 import MFASetup from './components/MFASetup';
@@ -224,11 +225,14 @@ function TenderXApp() {
           {/* TAB 6: Evaluations & Audits / Evaluator Oversight */}
           {activeTab === 'evaluations' && (
             <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
-              {user?.role === 'SUPER_ADMIN' ? (
-                <EvaluatorOversightPanel />
-              ) : (
-                <BidManagementDashboard initialTab="evaluations" />
-              )}
+              <EvaluationManagementDashboard
+                onNavigateToTender={(tenderId) => {
+                  if (tenderId) {
+                    setInspectTenderId(tenderId);
+                  }
+                  setActiveTab('tenders');
+                }}
+              />
             </div>
           )}
 
