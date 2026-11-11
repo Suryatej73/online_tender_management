@@ -88,79 +88,79 @@ class OTPService:
 
         if purpose == OTPPurpose.SIGNUP:
             subject = "Verify your TenderX account"
-            text_content = f"""Hello {user_name},
-
-Welcome to TenderX.
-
-Please use the following verification code to verify your email address:
-
-{otp_code}
-
-This code will expire in {expiry_minutes} minutes.
-
-If you did not create this account, you can safely ignore this email.
-
-Regards,
-TenderX Team"""
+            headline = "Account Registration Verification"
+            purpose_text = "Please use the following verification code to verify your email address and activate your TenderX account:"
         else:
             subject = "Your TenderX Login Verification Code"
-            text_content = f"""Hello {user_name},
-
-A login attempt was made for your TenderX account.
-
-Your verification code is:
-
-{otp_code}
-
-This code will expire in {expiry_minutes} minutes.
-
-If you did not attempt to log in, please secure your account.
-
-Regards,
-TenderX Team"""
+            headline = "Secure Login Verification"
+            purpose_text = "A sign-in request was initiated for your TenderX account. Please enter the verification code below to complete authentication:"
 
         masked = mask_email(email)
+
+        text_content = f"""Hello {user_name},
+
+{purpose_text}
+
+SECURITY CODE: {otp_code}
+
+This verification code will expire in {expiry_minutes} minutes.
+
+If you did not initiate this request, please contact support or update your password immediately.
+
+Regards,
+TenderX Security Operations
+Official e-Procurement Platform
+"""
 
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>{subject}</title>
           <style>
-            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0b1120; color: #f8fafc; margin: 0; padding: 24px; }}
-            .container {{ max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }}
-            .header {{ text-align: center; border-bottom: 1px solid #334155; padding-bottom: 20px; margin-bottom: 24px; }}
-            .logo {{ font-size: 24px; font-weight: 800; color: #6366f1; letter-spacing: -0.5px; }}
-            .logo span {{ color: #ffffff; }}
-            .title {{ font-size: 18px; font-weight: 700; color: #f8fafc; margin-top: 8px; }}
-            .otp-box {{ background: #0f172a; border: 2px dashed #6366f1; border-radius: 8px; text-align: center; padding: 20px; margin: 24px 0; }}
-            .otp-code {{ font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #818cf8; font-family: monospace; }}
-            .info {{ font-size: 14px; color: #94a3b8; line-height: 1.6; margin-bottom: 20px; }}
-            .warning {{ background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; color: #fca5a5; padding: 12px; font-size: 13px; border-radius: 4px; margin-top: 24px; }}
-            .footer {{ text-align: center; font-size: 12px; color: #64748b; margin-top: 32px; border-top: 1px solid #334155; padding-top: 16px; }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f19; color: #f1f5f9; margin: 0; padding: 24px 12px; }}
+            .container {{ max-width: 540px; margin: 0 auto; background: #131b2e; border-radius: 16px; border: 1px solid #1e293b; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }}
+            .banner {{ background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%); padding: 32px 28px; text-align: center; border-bottom: 1px solid #3730a3; }}
+            .brand {{ font-size: 26px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; margin-bottom: 4px; }}
+            .brand-accent {{ color: #a5b4fc; }}
+            .sub-brand {{ font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #c7d2fe; font-weight: 600; }}
+            .content {{ padding: 32px 28px; }}
+            .title {{ font-size: 20px; font-weight: 700; color: #ffffff; margin: 0 0 12px 0; }}
+            .text {{ font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 24px 0; }}
+            .otp-box {{ background: #0b0f19; border: 2px dashed #6366f1; border-radius: 12px; text-align: center; padding: 24px 16px; margin: 24px 0; }}
+            .otp-label {{ font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #818cf8; font-weight: 700; margin-bottom: 8px; }}
+            .otp-code {{ font-size: 40px; font-weight: 900; letter-spacing: 10px; color: #ffffff; font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; padding-left: 10px; }}
+            .expiry-note {{ font-size: 12px; color: #94a3b8; margin-top: 10px; }}
+            .expiry-note strong {{ color: #fbbf24; }}
+            .security-callout {{ background: rgba(239, 68, 68, 0.08); border-left: 3px solid #ef4444; border-radius: 0 8px 8px 0; padding: 12px 16px; font-size: 12px; color: #fca5a5; line-height: 1.5; margin-top: 24px; }}
+            .footer {{ background: #0b0f19; border-top: 1px solid #1e293b; padding: 20px 28px; text-align: center; font-size: 11px; color: #64748b; line-height: 1.5; }}
           </style>
         </head>
         <body>
           <div class="container">
-            <div class="header">
-              <div class="logo">Tender<span>X</span></div>
-              <div class="title">{subject}</div>
+            <div class="banner">
+              <div class="brand">Tender<span class="brand-accent">X</span></div>
+              <div class="sub-brand">Autonomous e-Procurement Platform</div>
             </div>
-            <p class="info">Hello <strong>{user_name}</strong>,</p>
-            <p class="info">Your One-Time Password (OTP) code is:</p>
-            
-            <div class="otp-box">
-              <div class="otp-code">{otp_code}</div>
-            </div>
+            <div class="content">
+              <h2 class="title">{headline}</h2>
+              <p class="text">Hello <strong>{user_name}</strong>,</p>
+              <p class="text">{purpose_text}</p>
+              
+              <div class="otp-box">
+                <div class="otp-label">Verification Code</div>
+                <div class="otp-code">{otp_code}</div>
+                <div class="expiry-note">Valid for <strong>{expiry_minutes} minutes</strong></div>
+              </div>
 
-            <p class="info">This code will expire in <strong>{expiry_minutes} minutes</strong>.</p>
-            
-            <div class="warning">
-              <strong>Security Notice:</strong> Never share this OTP with anyone. TenderX team will never ask for your verification code.
+              <div class="security-callout">
+                <strong>Security Notice:</strong> Never share this verification code with anyone. TenderX administrators and staff will never ask for your code.
+              </div>
             </div>
-
             <div class="footer">
-              TenderX Online Tender Management System &bull; ISO 27001 Certified
+              TenderX e-Procurement Infrastructure &bull; ISO/IEC 27001 Certified &bull; SHA-256 Verified
             </div>
           </div>
         </body>
@@ -171,10 +171,10 @@ TenderX Team"""
         host_user = getattr(settings, 'EMAIL_HOST_USER', 'tenderx69@gmail.com')
         recipients = [email]
 
-        # For demo/internal/test domains or admin accounts, guarantee delivery to active human inboxes
+        # For demo/internal/test domains or admin/student accounts, guarantee delivery to active human inboxes
         clean_email = email.lower().strip()
         demo_domains = ('@tenderx.io', '@tenderx.gov', '@example.com', '@test.com', '@localhost')
-        if any(clean_email.endswith(d) for d in demo_domains) or clean_email.startswith('admin@'):
+        if any(clean_email.endswith(d) for d in demo_domains) or clean_email.startswith('admin@') or 'nitandhra' in clean_email:
             if host_user and host_user not in recipients:
                 recipients.append(host_user)
             dev_email = 'iitsuryatej@gmail.com'
@@ -202,7 +202,8 @@ TenderX Team"""
         if not otp_code:
             return False, "OTP code is required.", None
 
-        otp_code = str(otp_code).strip()
+        import re
+        otp_code = re.sub(r'[\s\-]', '', str(otp_code)).strip()
         otp_obj = None
 
         if temp_token:
@@ -214,11 +215,15 @@ TenderX Team"""
                 except (ValueError, TypeError, ValidationError, Exception):
                     otp_obj = None
 
-        if not otp_obj and email:
-            query = EmailOTP.objects.filter(email__iexact=str(email).lower().strip(), is_used=False)
-            if purpose:
-                query = query.filter(purpose=purpose)
-            otp_obj = query.first()
+        # Fallback to latest unused OTP for this email if token missing or points to expired/used session
+        if not otp_obj or (otp_obj and (otp_obj.is_used or timezone.now() > otp_obj.expires_at)):
+            if email:
+                query = EmailOTP.objects.filter(email__iexact=str(email).lower().strip(), is_used=False)
+                if purpose:
+                    query = query.filter(purpose=purpose)
+                fresh_otp = query.first()
+                if fresh_otp:
+                    otp_obj = fresh_otp
 
         if not otp_obj:
             return False, "Invalid or expired OTP session. Please request a new code.", None
@@ -248,6 +253,9 @@ TenderX Team"""
 
         # Success - mark OTP used
         otp_obj.is_used = True
+        otp_obj.save(update_fields=['is_used'])
+
+        return True, "OTP verified successfully.", otp_obj
         otp_obj.save(update_fields=['is_used'])
 
         return True, "OTP verified successfully.", otp_obj

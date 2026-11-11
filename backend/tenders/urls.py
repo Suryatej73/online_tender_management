@@ -3,7 +3,7 @@ from .views import (
     TenderListCreateView, TenderDashboardView, TenderDetailView, TenderTransitionView,
     TenderCategoryView, TenderCategoryDetailView, TenderTemplateView,
     ApplyTemplateView, TenderAmendmentView, PublishAmendmentView,
-    TenderVersionHistoryView
+    TenderVersionHistoryView, TenderBidsSummaryNotifyView
 )
 
 urlpatterns = [
@@ -12,6 +12,7 @@ urlpatterns = [
     path('tenders/', TenderListCreateView.as_view(), name='tender_list_create'),
     path('tenders/<uuid:pk>/', TenderDetailView.as_view(), name='tender_detail'),
     path('tenders/<uuid:pk>/transition/', TenderTransitionView.as_view(), name='tender_transition'),
+    path('tenders/<uuid:pk>/send-summary-email/', TenderBidsSummaryNotifyView.as_view(), name='tender_send_summary_email'),
     path('tenders/<uuid:pk>/versions/', TenderVersionHistoryView.as_view(), name='tender_versions'),
 
     # Tender Categories

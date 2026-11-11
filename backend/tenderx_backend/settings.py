@@ -28,14 +28,14 @@ def _load_env_file(env_path: Path, override: bool = False):
         pass
 
 
-# Load root .env first, then backend/.env with override=True so backend/.env takes precedence
-_load_env_file(BASE_DIR.parent / '.env', override=False)
+# Load root .env first, then backend/.env with override=True so environment changes take effect immediately
+_load_env_file(BASE_DIR.parent / '.env', override=True)
 _load_env_file(BASE_DIR / '.env', override=True)
 
 try:
     from dotenv import load_dotenv
     load_dotenv(BASE_DIR / '.env', override=True)
-    load_dotenv(BASE_DIR.parent / '.env', override=False)
+    load_dotenv(BASE_DIR.parent / '.env', override=True)
 except ImportError:
     pass
 
