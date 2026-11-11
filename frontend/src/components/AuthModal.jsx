@@ -597,7 +597,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
                       <span className="text-[11px] text-gray-500">Demo Fill:</span>
                       <button
                         type="button"
-                        onClick={() => quickFillCredentials('admin@tenderx.io', 'Admin123!')}
+                        onClick={() => quickFillCredentials('admin@tenderx.io', 'Admin@12345')}
                         className="text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 transition cursor-pointer"
                       >
                         Admin
