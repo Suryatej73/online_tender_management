@@ -201,12 +201,18 @@ export default function TenderManagementDashboard({ initialSelectedTenderId, onN
     }
 
     try {
+      const parseDateSafe = (val) => {
+        if (!val) return null;
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d.toISOString();
+      };
+
       const payload = {
         ...formData,
         category: formData.category ? formData.category : null,
         budget: formData.budget ? parseFloat(formData.budget) : 0,
-        submission_deadline: formData.submission_deadline ? new Date(formData.submission_deadline).toISOString() : null,
-        opening_date: formData.opening_date ? new Date(formData.opening_date).toISOString() : null,
+        submission_deadline: parseDateSafe(formData.submission_deadline),
+        opening_date: parseDateSafe(formData.opening_date),
         documents: tenderDocs
       };
 
@@ -370,7 +376,10 @@ export default function TenderManagementDashboard({ initialSelectedTenderId, onN
         </select>
 
         <button
-          onClick={loadData}
+          onClick={() => {
+            setFilters({ search: '', status: '', category: '' });
+            loadData();
+          }}
           className="w-full sm:w-auto px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0"
         >
           <RefreshCw className="w-3.5 h-3.5" />

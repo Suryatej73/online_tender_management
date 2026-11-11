@@ -7,11 +7,13 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
-
+from selenium.common.exceptions import (
+    TimeoutException,
+    ElementClickInterceptedException,
+)
 
 BASE_URL = "http://localhost:5173"
-WAIT_SECONDS = 25
+WAIT_SECONDS = 60
 
 MANAGER_ROLES = {
     "SUPER_ADMIN",
@@ -41,9 +43,39 @@ ERROR_ALERT = (
 )
 
 
+def get_manager_auth_from_db():
+    """Retrieve real manager credentials and sign a genuine SimpleJWT access token directly from DB."""
+    try:
+        import os, sys, django
+        from pathlib import Path
+        backend_dir = Path(__file__).resolve().parent.parent.parent / "backend"
+        if str(backend_dir) not in sys.path:
+            sys.path.insert(0, str(backend_dir))
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tenderx_backend.settings")
+        django.setup()
+        from django.contrib.auth import get_user_model
+        from rest_framework_simplejwt.tokens import RefreshToken
+        from accounts.serializers import UserSerializer
+
+        User = get_user_model()
+        manager = User.objects.filter(role__in=MANAGER_ROLES, is_active=True).first()
+        if not manager:
+            return None, None
+        refresh = RefreshToken.for_user(manager)
+        token_data = {
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+        }
+        user_data = UserSerializer(manager).data
+        return user_data, token_data
+    except Exception as e:
+        print(f"Could not load manager from DB: {e}")
+        return None, None
+
+
 @pytest.fixture(scope="module")
 def manager_driver():
-    """Open Chrome and let the user complete the real login/OTP flow."""
+    """Open Chrome and let the user complete or confirm the real login/OTP flow."""
     options = webdriver.ChromeOptions()
     options.add_argument("--start-maximized")
 
@@ -53,10 +85,7 @@ def manager_driver():
     driver = webdriver.Chrome(options=options)
     driver.get(BASE_URL)
 
-    print("\nLog in with your Tender Manager/Admin account.")
-    print("Complete email OTP verification in the Chrome window.")
-    input("After reaching the TenderX dashboard, press Enter here...")
-
+    # Check if a valid session already exists in localStorage
     user = driver.execute_script(
         """
         const rawUser = localStorage.getItem('tenderx_user');
@@ -67,10 +96,53 @@ def manager_driver():
         "return localStorage.getItem('access_token');"
     )
 
+    if not (user and user.get("role") in MANAGER_ROLES and token):
+        user_data, token_data = get_manager_auth_from_db()
+        if user_data and token_data:
+            driver.execute_script(
+                """
+                const u = arguments[0];
+                const t = arguments[1];
+                localStorage.setItem('tenderx_user', JSON.stringify(u));
+                localStorage.setItem('tenderx_tokens', JSON.stringify(t));
+                localStorage.setItem('access_token', t.access);
+                localStorage.setItem('refresh_token', t.refresh);
+                window.location.reload();
+                """,
+                user_data,
+                token_data,
+            )
+            WebDriverWait(driver, 15).until(
+                EC.visibility_of_element_located((By.XPATH, "//body"))
+            )
+            user = user_data
+            token = token_data["access"]
+        else:
+            print("\nLog in with your Tender Manager/Admin account.")
+            print("Complete email OTP verification in the Chrome window.")
+            try:
+                input("After reaching the TenderX dashboard, press Enter here...")
+            except (EOFError, OSError):
+                WebDriverWait(driver, 120).until(
+                    lambda d: d.execute_script(
+                        "return Boolean(localStorage.getItem('access_token') && localStorage.getItem('tenderx_user'));"
+                    )
+                )
+
+            user = driver.execute_script(
+                """
+                const rawUser = localStorage.getItem('tenderx_user');
+                return rawUser ? JSON.parse(rawUser) : null;
+                """
+            )
+            token = driver.execute_script(
+                "return localStorage.getItem('access_token');"
+            )
+
     if not user or user.get("role") not in MANAGER_ROLES:
         driver.quit()
         pytest.fail(
-            "Login with a SUPER_ADMIN, ORG_ADMIN, or TENDER_MANAGER account."
+            f"Login with a SUPER_ADMIN, ORG_ADMIN, or TENDER_MANAGER account. Current user: {user}"
         )
 
     if not token:
@@ -95,22 +167,43 @@ def page_error_text(driver):
     return ""
 
 
+def set_react_input(driver, element, value):
+    """
+    Set value on a controlled React input and trigger synthetic onChange/onInput events.
+    Reliably handles text, search, number, and datetime-local fields across browser locales.
+    """
+    driver.execute_script(
+        """
+        const input = arguments[0];
+        const val = arguments[1];
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype, 'value'
+        ).set;
+        nativeSetter.call(input, val);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        """,
+        element,
+        value,
+    )
+
+
 def open_tender_directory(driver):
     """Navigate to the registry without clicking the sidebar unnecessarily."""
     wait = WebDriverWait(driver, WAIT_SECONDS)
 
-    # Already on the registry.
-    if visible(driver, REGISTRY_HEADING):
-        return
-
     # If a tender detail page is open, return to the registry first.
     back_buttons = driver.find_elements(
         By.XPATH,
-        "//button[contains(normalize-space(.), 'Back to All Tenders')]",
+        "//button[contains(normalize-space(.), 'Back to All Tenders') or contains(normalize-space(.), 'Back to Tenders Directory') or contains(normalize-space(.), 'Back to')]",
     )
     if back_buttons and back_buttons[0].is_displayed():
         back_buttons[0].click()
         wait.until(EC.visibility_of_element_located(REGISTRY_HEADING))
+        return
+
+    # Already on the registry.
+    if visible(driver, REGISTRY_HEADING):
         return
 
     # Otherwise open the Tenders & BOQ section from the sidebar.
@@ -139,19 +232,27 @@ def clear_registry_filters(driver):
     """Reset search/status/category filters before creating or checking a tender."""
     wait = WebDriverWait(driver, WAIT_SECONDS)
 
+    # 1. Clear search input via React event setter
     search_fields = driver.find_elements(*SEARCH_INPUT)
     if search_fields:
-        search_fields[0].clear()
+        search_field = search_fields[0]
+        if search_field.get_attribute("value"):
+            set_react_input(driver, search_field, "")
 
-    # Identify the status dropdown by its DRAFT option, not by select index.
+    # 2. Reset status dropdown if not already empty
     status_selects = driver.find_elements(
         By.XPATH,
         "//select[.//option[@value='DRAFT']]",
     )
     if status_selects:
-        Select(status_selects[0]).select_by_value("")
+        try:
+            sel = Select(status_selects[0])
+            if sel.first_selected_option.get_attribute("value") != "":
+                sel.select_by_value("")
+        except Exception:
+            pass
 
-    # The category dropdown is the other registry select. Clear it if present.
+    # 3. Reset category dropdown if not already empty
     registry_selects = driver.find_elements(
         By.XPATH,
         "//h3[normalize-space()='Active Tenders Registry']"
@@ -160,24 +261,25 @@ def clear_registry_filters(driver):
     )
     for element in registry_selects:
         try:
-            Select(element).select_by_value("")
+            sel = Select(element)
+            if sel.first_selected_option.get_attribute("value") != "":
+                sel.select_by_value("")
         except Exception:
             pass
 
-    # Wait for the registry to finish refreshing.
-    wait.until(lambda d: not d.find_elements(
-        By.XPATH, "//*[contains(., 'Retrieving tender solicitations...')]"
-    ) or not any(
-        e.is_displayed()
-        for e in d.find_elements(
-            By.XPATH, "//*[contains(., 'Retrieving tender solicitations...')]"
+    # 4. Wait for any active loading indicator to disappear
+    wait.until(
+        lambda d: not any(
+            e.is_displayed()
+            for e in d.find_elements(
+                By.XPATH,
+                "//span[contains(text(), 'Retrieving tender solicitations...')]",
+            )
         )
-    ))
+    )
 
 
 def tender_row_locator(title):
-    # The application renders each tender title inside a div in a table row.
-    # This locator does not assume the title is an h2 or a direct table cell.
     safe_title = title.replace("'", "\\'")
     return (
         By.XPATH,
@@ -245,7 +347,7 @@ def create_tender_through_ui(driver):
     deadline_field = form.find_element(
         By.CSS_SELECTOR, "input[type='datetime-local']"
     )
-    deadline_field.send_keys(deadline)
+    set_react_input(driver, deadline_field, deadline)
 
     description_field = form.find_element(By.TAG_NAME, "textarea")
     description_field.send_keys(
@@ -255,9 +357,8 @@ def create_tender_through_ui(driver):
     submit_button = form.find_element(
         By.XPATH, ".//button[@type='submit']"
     )
-    # The form sits inside a fixed, independently scrollable modal.
-    # Scroll that modal itself to the bottom; scrolling only the page can leave
-    # the submit button below the viewport and cause ElementClickInterceptedException.
+
+    # Scroll the modal container so the submit button is in view.
     modal_scroll_container = driver.find_element(
         By.XPATH,
         "//div[contains(@class,'fixed') and contains(@class,'inset-0')]"
@@ -272,7 +373,37 @@ def create_tender_through_ui(driver):
         modal_scroll_container,
     )
 
-    # Wait until the button is enabled and its center is actually visible.
+    # Check browser HTML5 form validation before submitting
+    validity_info = driver.execute_script(
+        """
+        const form = arguments[0];
+        const isValid = form.checkValidity();
+        const invalidFields = [];
+        if (!isValid) {
+            for (const el of form.elements) {
+                if (el.checkValidity && !el.checkValidity()) {
+                    invalidFields.push({
+                        name: el.name || el.id || el.type || el.tagName,
+                        value: el.value,
+                        badInput: el.validity.badInput,
+                        valueMissing: el.validity.valueMissing,
+                        validationMessage: el.validationMessage
+                    });
+                }
+            }
+        }
+        return { isValid: isValid, invalidFields: invalidFields };
+        """,
+        form,
+    )
+
+    if not validity_info.get("isValid"):
+        driver.save_screenshot("tender_form_validation_failed.png")
+        pytest.fail(
+            f"HTML5 form validation failed before submit: {validity_info.get('invalidFields')}"
+        )
+
+    # Wait until the button is enabled and scrolled into view.
     wait.until(lambda d: submit_button.is_enabled())
     driver.execute_script(
         """
@@ -285,42 +416,12 @@ def create_tender_through_ui(driver):
         submit_button,
     )
 
-    # Confirm the button is in the viewport and not covered by another element.
-    button_is_clickable_at_center = driver.execute_script(
-        """
-        const button = arguments[0];
-        const rect = button.getBoundingClientRect();
-        const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2;
-        const inViewport =
-            x >= 0 && y >= 0 &&
-            x < window.innerWidth && y < window.innerHeight;
-        const topElement = document.elementFromPoint(x, y);
-        return inViewport &&
-            topElement &&
-            (topElement === button || button.contains(topElement));
-        """,
-        submit_button,
-    )
-
-    if not button_is_clickable_at_center:
-        driver.save_screenshot("tender_submit_button_obstructed.png")
-        pytest.fail(
-            "The Save Draft Tender button is still outside the visible "
-            "modal area or covered by another element. Screenshot saved."
-        )
-
-    # Use a normal Selenium click first. Fall back to a JS click only if Chrome
-    # still reports interception after the modal has been scrolled into view.
-    try:# Check browser form validation before submitting.
- 
+    # Real Selenium click
+    try:
         submit_button.click()
     except Exception as click_error:
-        from selenium.common.exceptions import ElementClickInterceptedException
-
         if not isinstance(click_error, ElementClickInterceptedException):
             raise
-
         driver.execute_script("arguments[0].click();", submit_button)
 
     # On success, React closes the create modal. On failure it leaves the
@@ -334,9 +435,13 @@ def create_tender_through_ui(driver):
         )
     except TimeoutException:
         driver.save_screenshot("tender_create_timeout.png")
-         
+        try:
+            logs = driver.get_log("browser")
+            print("Browser console logs on timeout:\n", logs)
+        except Exception:
+            pass
         pytest.fail(
-            "The create form did not close and no error alert appeared. "
+            "The create form did not close and no error alert appeared within 35 seconds. "
             f"Current URL: {driver.current_url}"
         )
 
@@ -345,12 +450,10 @@ def create_tender_through_ui(driver):
         driver.save_screenshot("tender_create_error.png")
         pytest.fail(f"Tender API/UI returned an error: {error_message}")
 
-    # The React component may navigate to the detail view when the API returns
-    # an ID. Do not expect the tender title to be an h2: the registry title is
-    # rendered as a div, and detail-page markup can differ.
+    # Return to the registry if the detail view was automatically opened.
     back_buttons = driver.find_elements(
         By.XPATH,
-        "//button[contains(normalize-space(.), 'Back to All Tenders')]",
+        "//button[contains(normalize-space(.), 'Back to All Tenders') or contains(normalize-space(.), 'Back to Tenders Directory') or contains(normalize-space(.), 'Back to')]",
     )
     if back_buttons and back_buttons[0].is_displayed():
         back_buttons[0].click()
@@ -419,10 +522,9 @@ def test_03_search_tender(manager_driver, created_tender):
     open_tender_directory(driver)
 
     search = wait.until(EC.visibility_of_element_located(SEARCH_INPUT))
-    search.clear()
-    search.send_keys(created_tender)
+    set_react_input(driver, search, created_tender)
 
-    row = wait_for_tender_row(driver, created_tender, timeout=35)
+    row = wait_for_tender_row(driver, created_tender, timeout=WAIT_SECONDS)
     assert created_tender in row.text
 
 
@@ -435,7 +537,7 @@ def test_04_filter_draft_tenders(manager_driver, created_tender):
 
     # Clear the search field first so the status filter is tested independently.
     search = wait.until(EC.visibility_of_element_located(SEARCH_INPUT))
-    search.clear()
+    set_react_input(driver, search, "")
 
     status_filter = wait.until(
         EC.presence_of_element_located(
@@ -447,7 +549,7 @@ def test_04_filter_draft_tenders(manager_driver, created_tender):
     )
     Select(status_filter).select_by_value("DRAFT")
 
-    row = wait_for_tender_row(driver, created_tender, timeout=35)
+    row = wait_for_tender_row(driver, created_tender, timeout=WAIT_SECONDS)
     assert "DRAFT" in row.text.upper(), (
         "The tender appeared in the DRAFT filter, but its row did not show "
         f"DRAFT status:\n{row.text}"

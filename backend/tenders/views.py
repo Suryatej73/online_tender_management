@@ -203,7 +203,7 @@ class TenderListCreateView(APIView):
             data = dict(raw_data) if isinstance(raw_data, dict) else {}
 
             # Sanitize empty string foreign keys so PostgreSQL doesn't choke on invalid UUID
-            for fk in ['category', 'organization', 'parent_category']:
+            for fk in ['organization', 'parent_category']:
                 val = data.get(fk)
                 if val is not None and isinstance(val, str):
                     val_str = val.strip()
@@ -308,7 +308,7 @@ class TenderListCreateView(APIView):
 
             if tender is None:
                 user_id_str = str(getattr(request.user, 'id', '')) if hasattr(request, 'user') and request.user.is_authenticated else None
-                tender_initial_status = data.get('status') or TenderStatus.ACTIVE
+                tender_initial_status = data.get('status') or TenderStatus.DRAFT
                 tender = Tender.objects.create(
                     tender_number=tender_number,
                     title=data.get('title', 'Untitled Tender'),
@@ -320,7 +320,7 @@ class TenderListCreateView(APIView):
                     organization=request.user.organization if hasattr(request, 'user') and request.user.is_authenticated and hasattr(request.user, 'organization') else None
                 )
             else:
-                tender_initial_status = data.get('status') or TenderStatus.ACTIVE
+                tender_initial_status = data.get('status') or TenderStatus.DRAFT
                 if not getattr(tender, 'tender_number', None) or tender.tender_number != tender_number:
                     tender.tender_number = tender_number
                 tender.status = tender_initial_status
