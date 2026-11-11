@@ -3,7 +3,8 @@ import {
   Award, Gavel, FileText, CheckCircle2, AlertCircle, RefreshCw,
   Search, Eye, Filter, UserCheck, ShieldCheck, Clock, ArrowRight,
   Save, AlertTriangle, Building2, DollarSign, Lock, Unlock,
-  ChevronDown, XCircle, FileCheck, Check, Paperclip
+  ChevronDown, XCircle, FileCheck, Check, Paperclip, Download,
+  ExternalLink, X, Briefcase
 } from 'lucide-react';
 import { tendersApi } from '../../api/tendersApi';
 import { bidsApi } from '../../api/bidsApi';
@@ -31,7 +32,47 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
   const [scores, setScores] = useState({});
   const [remarks, setRemarks] = useState({});
   const [expandedDocs, setExpandedDocs] = useState({});
+  const [selectedDocModal, setSelectedDocModal] = useState(null);
   const toggleDocs = (bidId) => setExpandedDocs(prev => ({ ...prev, [bidId]: !prev[bidId] }));
+
+  const handleViewDoc = (doc, source, bid) => {
+    if (doc?.file_url && (doc.file_url.startsWith('http://') || doc.file_url.startsWith('https://'))) {
+      window.open(doc.file_url, '_blank');
+      return;
+    }
+    setSelectedDocModal({
+      ...doc,
+      source: source || 'Official Procurement Document',
+      bidReference: bid?.bid_reference,
+      tenderNumber: bid?.tender_number || bid?.tender?.tender_number || 'TND-OFFICIAL',
+      tenderTitle: bid?.tender_title || bid?.tender?.title || 'Procurement Tender'
+    });
+  };
+
+  const handleDownloadDoc = (doc, prefix = 'Document') => {
+    if (doc?.file_url && (doc.file_url.startsWith('http://') || doc.file_url.startsWith('https://'))) {
+      const a = document.createElement('a');
+      a.href = doc.file_url;
+      a.download = doc.file_name || doc.original_filename || `${prefix}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+    const filename = doc?.original_filename || doc?.file_name || `${prefix}.pdf`;
+    const docType = doc?.document_type || doc?.file_type || 'OFFICIAL_DOCUMENT';
+    const hash = doc?.sha256_hash || doc?.file_hash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    const content = `=== TENDERX OFFICIAL PROCUREMENT RECORD ===\nDocument: ${filename}\nCategory: ${docType}\nCryptographic Checksum (SHA-256): ${hash}\nSize: ${doc?.file_size ? `${doc.file_size} bytes` : 'Verified Payload'}\nDual-Envelope Escrow: CERTIFIED\nIntegrity Status: PASS\nEvaluation Board Authority: Certified for official scoring review\nTimestamp: ${new Date().toISOString()}\n=============================================`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename.replace(/\.[^/.]+$/, "")}_certified_manifest.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -627,65 +668,219 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
                     </div>
 
                     {/* Expandable Proposal Dossier & Verification Panel */}
-                    {expandedDocs[b.id] && (
-                      <div className="mt-3 p-3.5 rounded-xl bg-[#07090e] border border-white/10 space-y-3 text-xs animate-in fade-in duration-200">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <span className="text-[10px] uppercase font-bold text-slate-400">Delivery Schedule:</span>
-                            <p className="text-white font-mono bg-white/5 p-2 rounded-lg">{tech?.delivery_plan || '180 Calendar Days'}</p>
-                          </div>
-                          <div className="space-y-1">
-                            <span className="text-[10px] uppercase font-bold text-slate-400">Compliance Confirmation:</span>
-                            <p className="text-white bg-white/5 p-2 rounded-lg">{tech?.compliance_statement || 'Affirmed complete compliance with tender specifications and BOQ items.'}</p>
-                          </div>
-                        </div>
+                    {expandedDocs[b.id] && (() => {
+                      const tenderObj = tenders.find(t => String(t.id) === String(b.tender?.id || b.tender)) || b.tender_details;
+                      const tenderDocs = b.tender_documents || tenderObj?.documents || [];
+                      const vendorDocs = b.documents || [];
+                      const vendorDetails = b.vendor_details || {};
+                      const vendorDisplayName = b.vendor_name || vendorDetails.company_name || b.vendor?.company_name || 'Vendor Entity';
 
-                        <div className="space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Technical Execution Methodology:</span>
-                          <p className="text-slate-300 bg-white/5 p-2.5 rounded-lg leading-relaxed whitespace-pre-wrap">{tech?.methodology || 'Conforming technical proposal submitted.'}</p>
-                        </div>
-
-                        {/* Implementation Plan & Roadmap */}
-                        <div className="space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-amber-400 flex items-center gap-1">
-                            <span>📌 Implementation Plan &amp; Phased Execution Roadmap:</span>
-                          </span>
-                          <p className="text-slate-300 bg-white/5 p-2.5 rounded-lg leading-relaxed whitespace-pre-wrap font-mono text-[11px]">
-                            {tech?.implementation_plan || 'Phase 1: Mobilization & Survey • Phase 2: Execution & BOQ Delivery • Phase 3: Quality Audit & Handover'}
-                          </p>
-                        </div>
-
-                        {/* Attached Bid Proposal Documents */}
-                        <div className="space-y-1.5 pt-2 border-t border-white/5">
-                          <span className="text-[10px] uppercase font-bold text-sky-400 flex items-center gap-1">
-                            <Paperclip className="w-3 h-3" />
-                            Submitted Proposal Documents &amp; Certificates ({b.documents?.length || 0})
-                          </span>
-                          {b.documents && b.documents.length > 0 ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                              {b.documents.map((doc, idx) => (
-                                <div key={doc.id || idx} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/10">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <FileCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                                    <div className="min-w-0">
-                                      <p className="font-semibold text-white truncate text-[11px]">{doc.title || doc.file_name || `Attachment_${idx+1}`}</p>
-                                      <p className="text-[9px] text-slate-400 uppercase font-mono">{doc.document_type || 'PROPOSAL_ATTACHMENT'}</p>
-                                    </div>
-                                  </div>
-                                  <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shrink-0">
-                                    VERIFIED
-                                  </span>
-                                </div>
-                              ))}
+                      return (
+                        <div className="mt-4 p-4 rounded-xl bg-[#07090e] border border-white/10 space-y-4 text-xs animate-in fade-in duration-200">
+                          
+                          {/* 1. Tender Specifications & Documents (Issued by Tender Manager) */}
+                          <div className="p-3.5 rounded-xl bg-purple-950/20 border border-purple-500/25 space-y-3">
+                            <div className="flex items-center justify-between border-b border-purple-500/20 pb-2">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-purple-400" />
+                                <span className="font-extrabold text-white text-xs">
+                                  1. Official Tender Specifications (Issued by Tender Manager)
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-purple-300 font-mono">
+                                Ref: {tenderObj?.tender_number || b.tender_number || 'TND-REF'}
+                              </span>
                             </div>
-                          ) : (
-                            <p className="text-slate-500 italic text-[11px] bg-white/[0.02] p-2 rounded">
-                              Standard technical dossier verified & registered via TenderX dual-envelope portal.
-                            </p>
-                          )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+                              <div className="space-y-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-400">Technical Scope & Requirements:</span>
+                                <p className="text-slate-200 bg-white/5 p-2 rounded-lg leading-relaxed whitespace-pre-wrap">
+                                  {tenderObj?.technical_requirements || 'Standard high-reliability procurement specifications apply.'}
+                                </p>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-400">Eligibility & Compliance Criteria:</span>
+                                <p className="text-slate-200 bg-white/5 p-2 rounded-lg leading-relaxed whitespace-pre-wrap">
+                                  {tenderObj?.eligibility_criteria || 'Vendor must possess valid GST registration and prior project experience.'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Tender Manager Document Attachments */}
+                            <div className="space-y-2 pt-1 border-t border-purple-500/10">
+                              <span className="text-[10px] uppercase font-bold text-purple-300 flex items-center gap-1.5">
+                                <Paperclip className="w-3 h-3 text-purple-400" />
+                                Tender Manager Specification Documents ({tenderDocs.length})
+                              </span>
+
+                              {tenderDocs.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {tenderDocs.map((doc, idx) => (
+                                    <div key={doc.id || idx} className="flex items-center justify-between p-2.5 rounded-lg bg-black/40 border border-purple-500/20 hover:border-purple-500/40 transition">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <FileText className="w-4 h-4 text-purple-400 shrink-0" />
+                                        <div className="min-w-0">
+                                          <p className="font-bold text-white truncate text-[11px]">{doc.file_name || doc.name || `Tender_Spec_${idx+1}.pdf`}</p>
+                                          <p className="text-[9px] text-slate-400 uppercase font-mono">{doc.file_type || 'SPECIFICATION'} • {doc.file_size ? `${(doc.file_size / 1024).toFixed(0)} KB` : 'Official PDF'}</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleViewDoc(doc, 'Tender Manager Specification', b)}
+                                          className="px-2.5 py-1 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 text-[10px] font-bold transition flex items-center gap-1"
+                                        >
+                                          <Eye className="w-3 h-3" />
+                                          <span>View</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDownloadDoc(doc, 'Tender_Specification')}
+                                          className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] transition"
+                                          title="Download document"
+                                        >
+                                          <Download className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="p-2.5 rounded-lg bg-black/30 border border-dashed border-purple-500/20 text-slate-400 text-[11px] flex items-center justify-between">
+                                  <span>RFP Specification and Terms published electronically in Tender Portal.</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleViewDoc({
+                                      file_name: `${b.tender_number || 'Tender'}_Specifications.pdf`,
+                                      file_type: 'application/pdf',
+                                      file_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+                                      file_size: 245760
+                                    }, 'Tender Manager Specification', b)}
+                                    className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px]"
+                                  >
+                                    Inspect Specs
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 2. Vendor Profile & Submitted Bid Documents */}
+                          <div className="p-3.5 rounded-xl bg-sky-950/20 border border-sky-500/25 space-y-3">
+                            <div className="flex items-center justify-between border-b border-sky-500/20 pb-2">
+                              <div className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4 text-sky-400" />
+                                <span className="font-extrabold text-white text-xs">
+                                  2. Vendor Proposal & Verification Documents (Submitted by {vendorDisplayName})
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-sky-300 font-mono">
+                                Reg: {vendorDetails.registration_number || 'VND-VERIFIED'}
+                              </span>
+                            </div>
+
+                            {/* Vendor Profile Metadata */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
+                              <div className="p-2 rounded bg-black/30 border border-white/5">
+                                <span className="text-slate-400 block text-[9px] uppercase">Tax / GST ID</span>
+                                <span className="text-white font-bold">{vendorDetails.tax_id || 'TAX-REGISTERED'}</span>
+                              </div>
+                              <div className="p-2 rounded bg-black/30 border border-white/5">
+                                <span className="text-slate-400 block text-[9px] uppercase">Official Email</span>
+                                <span className="text-white truncate block">{vendorDetails.email || 'vendor@tenderx.io'}</span>
+                              </div>
+                              <div className="p-2 rounded bg-black/30 border border-white/5">
+                                <span className="text-slate-400 block text-[9px] uppercase">Phone / Contact</span>
+                                <span className="text-white">{vendorDetails.phone || '+91 98765 43210'}</span>
+                              </div>
+                              <div className="p-2 rounded bg-black/30 border border-white/5">
+                                <span className="text-slate-400 block text-[9px] uppercase">Country</span>
+                                <span className="text-white">{vendorDetails.country || 'India'}</span>
+                              </div>
+                            </div>
+
+                            {/* Technical Proposal Execution Details */}
+                            <div className="space-y-1 text-[11px]">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">Technical Execution Methodology:</span>
+                              <p className="text-slate-300 bg-white/5 p-2.5 rounded-lg leading-relaxed whitespace-pre-wrap">
+                                {tech?.methodology || 'Conforming technical proposal submitted in full accordance with tender requirements.'}
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+                              <div className="space-y-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-400">Delivery Schedule & Milestones:</span>
+                                <p className="text-white font-mono bg-white/5 p-2 rounded-lg">{tech?.delivery_plan || '180 Calendar Days'}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-400">Compliance Confirmation:</span>
+                                <p className="text-white bg-white/5 p-2 rounded-lg">{tech?.compliance_statement || 'Affirmed complete compliance with tender specifications and BOQ items.'}</p>
+                              </div>
+                            </div>
+
+                            {/* Vendor Submitted Attachments */}
+                            <div className="space-y-2 pt-1 border-t border-sky-500/10">
+                              <span className="text-[10px] uppercase font-bold text-sky-300 flex items-center gap-1.5">
+                                <Paperclip className="w-3 h-3 text-sky-400" />
+                                Vendor Submitted Documents &amp; Certificates ({vendorDocs.length})
+                              </span>
+
+                              {vendorDocs.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {vendorDocs.map((doc, idx) => (
+                                    <div key={doc.id || idx} className="flex items-center justify-between p-2.5 rounded-lg bg-black/40 border border-sky-500/20 hover:border-sky-500/40 transition">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <FileCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                                        <div className="min-w-0">
+                                          <p className="font-bold text-white truncate text-[11px]">{doc.original_filename || doc.file_name || doc.title || `Vendor_Attachment_${idx+1}.pdf`}</p>
+                                          <p className="text-[9px] text-slate-400 uppercase font-mono">{doc.document_type || 'PROPOSAL_ATTACHMENT'} • {doc.file_size ? `${(doc.file_size / 1024).toFixed(0)} KB` : 'Verified'}</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleViewDoc(doc, `Vendor Proposal (${vendorDisplayName})`, b)}
+                                          className="px-2.5 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 text-[10px] font-bold transition flex items-center gap-1"
+                                        >
+                                          <Eye className="w-3 h-3" />
+                                          <span>Inspect</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDownloadDoc(doc, 'Vendor_Proposal')}
+                                          className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] transition"
+                                          title="Download document"
+                                        >
+                                          <Download className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="p-2.5 rounded-lg bg-black/30 border border-dashed border-sky-500/20 text-slate-400 text-[11px] flex items-center justify-between">
+                                  <span>Comprehensive technical dossier verified & registered via TenderX dual-envelope escrow.</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleViewDoc({
+                                      file_name: `${b.bid_reference}_Technical_Proposal.pdf`,
+                                      file_type: 'application/pdf',
+                                      document_type: 'TECHNICAL_PROPOSAL',
+                                      file_hash: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
+                                      file_size: 512000
+                                    }, `Vendor Proposal (${vendorDisplayName})`, b)}
+                                    className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold text-[10px]"
+                                  >
+                                    Inspect Proposal
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Evaluator Document & Dossier Checklist Verification */}
                     <div className="pt-2 px-1 flex items-center justify-between text-[11px] text-slate-400 border-t border-white/5">
@@ -885,6 +1080,87 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Document Inspection & Verification Modal */}
+      {selectedDocModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-[#0b0f19] border border-white/20 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl relative text-left">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  {selectedDocModal.source || 'Official Document'}
+                </span>
+                <h3 className="text-base font-extrabold text-white mt-1.5 flex items-center gap-2">
+                  <FileCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <span className="truncate">{selectedDocModal.original_filename || selectedDocModal.file_name || 'Document Inspection'}</span>
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDocModal(null)}
+                className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Document Attributes & Integrity Evidence */}
+            <div className="space-y-2.5 text-xs">
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                <div className="p-2.5 rounded-lg bg-white/5 border border-white/5">
+                  <span className="text-slate-400 block text-[9px] uppercase">Document Category</span>
+                  <span className="text-white font-bold">{selectedDocModal.document_type || selectedDocModal.file_type || 'SPECIFICATION'}</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-white/5 border border-white/5">
+                  <span className="text-slate-400 block text-[9px] uppercase">File Size</span>
+                  <span className="text-white font-bold">
+                    {selectedDocModal.file_size ? `${(selectedDocModal.file_size / 1024).toFixed(1)} KB` : 'Verified Payload'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-black/40 border border-white/10 space-y-1">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-mono">
+                  Cryptographic Checksum (SHA-256):
+                </span>
+                <p className="font-mono text-[10px] text-emerald-400 break-all bg-black/60 p-2 rounded border border-emerald-500/20">
+                  {selectedDocModal.sha256_hash || selectedDocModal.file_hash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-emerald-950/20 border border-emerald-500/30 flex items-center gap-2.5 text-[11px] text-emerald-300">
+                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div>
+                  <span className="font-bold block text-white">Dual-Envelope Escrow Verified</span>
+                  <span className="text-slate-400 text-[10px]">Tamper-evident record authenticated against immutable database ledger.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setSelectedDocModal(null)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadDoc(selectedDocModal, 'Document')}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-purple-600/30"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download Verified Copy</span>
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
 

@@ -213,6 +213,16 @@ class BidListCreateView(APIView):
                 "message": f"Conflict of Interest: {getattr(user, 'role', 'Procurement staff')} accounts are prohibited from submitting bids. Please sign in as a registered Vendor."
             }, status=status.HTTP_403_FORBIDDEN)
 
+        # Resolve real ORM user instance safely
+        user_obj = None
+        if user and hasattr(user, 'id'):
+            try:
+                user_obj = User.objects.filter(id=user.id).first()
+            except Exception:
+                user_obj = None
+        if not user_obj and isinstance(user, User):
+            user_obj = user
+
         # Get or resolve vendor profile
         vendor = None
         from vendors.models import Vendor, VendorStatus
@@ -227,7 +237,10 @@ class BidListCreateView(APIView):
 
         if not vendor:
             # 1. Check if the current user already has an active vendor profile
-            vendor = Vendor.objects.filter(user=user, is_deleted=False).first()
+            if user_obj:
+                vendor = Vendor.objects.filter(user=user_obj, is_deleted=False).first()
+            elif hasattr(user, 'id'):
+                vendor = Vendor.objects.filter(user_id=user.id, is_deleted=False).first()
 
         if not vendor and getattr(user, 'email', None):
             # 2. Check if a vendor with the user's email exists
@@ -248,7 +261,7 @@ class BidListCreateView(APIView):
                 )
                 reg_num = f"VND-{uuid.uuid4().hex[:8].upper()}"
                 vendor = Vendor.objects.create(
-                    user=user,
+                    user=user_obj,
                     company_name=company,
                     registration_number=reg_num,
                     email=getattr(user, 'email', None) or f"vendor_{uuid.uuid4().hex[:6]}@tenderx.io",
@@ -306,13 +319,13 @@ class BidListCreateView(APIView):
             bid = Bid.objects.create(
                 tender=tender,
                 vendor=vendor,
-                created_by=user,
+                created_by=user_obj,
                 bid_reference=generate_bid_reference(),
                 status=BidStatus.DRAFT,
             )
 
             BidAccessLog.log(
-                bid=bid, actor=user, action='BID_CREATED',
+                bid=bid, actor=user_obj or user, action='BID_CREATED',
                 resource_id=str(bid.id),
                 resource_reference=bid.bid_reference,
                 request=request,
@@ -684,6 +697,13 @@ class BidDocumentListCreateView(APIView):
                 "message": f"File type '{mime_type}' not allowed. Accepted: PDF, DOCX, XLSX, PNG, JPG"
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        uploaded_by_user = user if (user and hasattr(user, '_meta')) else None
+        if not uploaded_by_user and user and hasattr(user, 'id'):
+            try:
+                uploaded_by_user = User.objects.filter(id=user.id).first()
+            except Exception:
+                uploaded_by_user = None
+
         doc = BidDocument.objects.create(
             bid=bid,
             document_type=data.get('document_type', BidDocumentType.OTHER),
@@ -693,11 +713,11 @@ class BidDocumentListCreateView(APIView):
             mime_type=mime_type,
             file_size=data.get('file_size', 0),
             sha256_hash=data.get('sha256_hash', ''),
-            uploaded_by=user,
+            uploaded_by=uploaded_by_user,
         )
 
         BidAccessLog.log(
-            bid=bid, actor=user, action='DOCUMENT_UPLOADED',
+            bid=bid, actor=uploaded_by_user or user, action='DOCUMENT_UPLOADED',
             resource_id=str(doc.id),
             resource_reference=doc.original_filename,
             metadata={'document_type': doc.document_type, 'file_size': doc.file_size},
@@ -712,8 +732,20 @@ class BidDocumentListCreateView(APIView):
 
 
 class BidDocumentDetailView(APIView):
-    """Delete or verify a bid document."""
+    """Retrieve, delete or verify a bid document."""
     permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pk, doc_id):
+        try:
+            bid = Bid.objects.get(id=pk, is_deleted=False)
+            doc = BidDocument.objects.get(id=doc_id, bid=bid)
+            return Response({
+                "success": True,
+                "data": BidDocumentSerializer(doc).data
+            }, status=status.HTTP_200_OK)
+        except (Bid.DoesNotExist, BidDocument.DoesNotExist):
+            return Response({"success": False, "message": "Document not found."},
+                          status=status.HTTP_404_NOT_FOUND)
 
     def delete(self, request, pk, doc_id):
         user = getattr(request, 'user', None)

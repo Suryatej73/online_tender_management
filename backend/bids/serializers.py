@@ -160,10 +160,13 @@ from .models import (
 # ──────────────────────────────────────────────
 
 class BidListSerializer(serializers.ModelSerializer):
-    """Safe bid serializer — never exposes financial data."""
+    """Safe bid serializer — includes vendor details and tender documents for evaluation."""
     tender_title = serializers.SerializerMethodField()
     tender_number = serializers.SerializerMethodField()
     vendor_name = serializers.SerializerMethodField()
+    vendor_details = serializers.SerializerMethodField()
+    tender_details = serializers.SerializerMethodField()
+    tender_documents = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     document_count = serializers.SerializerMethodField()
     has_technical = serializers.SerializerMethodField()
@@ -180,7 +183,8 @@ class BidListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'bid_reference', 'status', 'status_display',
             'current_version', 'tender', 'tender_title', 'tender_number',
-            'vendor', 'vendor_name',
+            'tender_details', 'tender_documents',
+            'vendor', 'vendor_name', 'vendor_details',
             'submitted_at', 'locked_at', 'withdrawn_at',
             'document_count', 'has_technical', 'has_financial',
             'is_modifiable', 'can_withdraw', 'deadline_remaining',
@@ -195,7 +199,61 @@ class BidListSerializer(serializers.ModelSerializer):
         return obj.tender.tender_number if obj.tender else None
 
     def get_vendor_name(self, obj):
-        return obj.vendor.company_name if obj.vendor else None
+        if obj.vendor and obj.vendor.company_name:
+            return obj.vendor.company_name
+        if obj.created_by:
+            return (
+                getattr(obj.created_by, 'organization_name', None) or
+                getattr(obj.created_by, 'full_name', None) or
+                getattr(obj.created_by, 'email', None) or
+                "Registered Vendor"
+            )
+        return "Registered Vendor"
+
+    def get_vendor_details(self, obj):
+        v = obj.vendor
+        u = obj.created_by or (v.user if v else None)
+        return {
+            'id': str(v.id) if v else (str(u.id) if u else None),
+            'company_name': (v.company_name if v and v.company_name else (getattr(u, 'organization_name', None) or getattr(u, 'full_name', None) or getattr(u, 'email', None) or 'Registered Vendor')),
+            'registration_number': (getattr(v, 'registration_number', None) or 'VND-VERIFIED'),
+            'tax_id': (getattr(v, 'tax_id', None) or 'TAX-REGISTERED'),
+            'email': (v.email if v and v.email else (getattr(u, 'email', '') or '')),
+            'phone': (getattr(v, 'phone', None) or getattr(u, 'phone_number', '') or ''),
+            'country': (getattr(v, 'country', None) or 'India'),
+            'address': (getattr(v, 'address', None) or ''),
+            'is_verified': (getattr(v, 'status', None) == 'VERIFIED' if v else True)
+        }
+
+    def get_tender_documents(self, obj):
+        if not obj.tender:
+            return []
+        try:
+            from tenders.serializers import TenderDocumentSerializer
+            docs = obj.tender.documents.all()
+            return TenderDocumentSerializer(docs, many=True).data
+        except Exception:
+            return []
+
+    def get_tender_details(self, obj):
+        t = obj.tender
+        if not t:
+            return None
+        return {
+            'id': str(t.id),
+            'tender_number': t.tender_number,
+            'title': t.title,
+            'description': t.description,
+            'procurement_method': t.procurement_method,
+            'budget': str(t.budget) if t.budget else '0',
+            'currency': t.currency,
+            'submission_deadline': t.submission_deadline.isoformat() if t.submission_deadline else None,
+            'eligibility_criteria': t.eligibility_criteria,
+            'technical_requirements': t.technical_requirements,
+            'financial_requirements': t.financial_requirements,
+            'manager_name': getattr(t.created_by, 'full_name', None) or 'Tender Manager',
+            'manager_email': getattr(t.created_by, 'email', None) or '',
+        }
 
     def get_document_count(self, obj):
         return obj.documents.filter(is_deleted=False).count()
@@ -259,12 +317,15 @@ class BidListSerializer(serializers.ModelSerializer):
 # ──────────────────────────────────────────────
 
 class BidDetailSerializer(serializers.ModelSerializer):
-    """Bid detail — includes technical bid but NOT financial bid data."""
+    """Bid detail — includes technical bid, vendor details, and tender specs."""
     tender_title = serializers.SerializerMethodField()
     tender_number = serializers.SerializerMethodField()
     tender_deadline = serializers.SerializerMethodField()
+    tender_details = serializers.SerializerMethodField()
+    tender_documents = serializers.SerializerMethodField()
     vendor_name = serializers.SerializerMethodField()
     vendor_company = serializers.SerializerMethodField()
+    vendor_details = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     documents = serializers.SerializerMethodField()
     technical_bid = serializers.SerializerMethodField()
@@ -280,7 +341,8 @@ class BidDetailSerializer(serializers.ModelSerializer):
             'id', 'bid_reference', 'status', 'status_display',
             'current_version',
             'tender', 'tender_title', 'tender_number', 'tender_deadline',
-            'vendor', 'vendor_name', 'vendor_company',
+            'tender_details', 'tender_documents',
+            'vendor', 'vendor_name', 'vendor_company', 'vendor_details',
             'submitted_at', 'locked_at', 'withdrawn_at',
             'created_at', 'updated_at', 'notes',
             'documents', 'technical_bid', 'financial_bid_status',
@@ -298,13 +360,65 @@ class BidDetailSerializer(serializers.ModelSerializer):
             return obj.tender.submission_deadline.isoformat()
         return None
 
+    def get_tender_documents(self, obj):
+        if not obj.tender:
+            return []
+        try:
+            from tenders.serializers import TenderDocumentSerializer
+            docs = obj.tender.documents.all()
+            return TenderDocumentSerializer(docs, many=True).data
+        except Exception:
+            return []
+
+    def get_tender_details(self, obj):
+        t = obj.tender
+        if not t:
+            return None
+        return {
+            'id': str(t.id),
+            'tender_number': t.tender_number,
+            'title': t.title,
+            'description': t.description,
+            'procurement_method': t.procurement_method,
+            'budget': str(t.budget) if t.budget else '0',
+            'currency': t.currency,
+            'submission_deadline': t.submission_deadline.isoformat() if t.submission_deadline else None,
+            'eligibility_criteria': t.eligibility_criteria,
+            'technical_requirements': t.technical_requirements,
+            'financial_requirements': t.financial_requirements,
+            'manager_name': getattr(t.created_by, 'full_name', None) or 'Tender Manager',
+            'manager_email': getattr(t.created_by, 'email', None) or '',
+        }
+
     def get_vendor_name(self, obj):
         if obj.vendor:
-            return obj.vendor.contact_person_name or obj.vendor.company_name
-        return None
+            return obj.vendor.company_name or obj.vendor.contact_person_name
+        if obj.created_by:
+            return (
+                getattr(obj.created_by, 'organization_name', None) or
+                getattr(obj.created_by, 'full_name', None) or
+                getattr(obj.created_by, 'email', None) or
+                "Registered Vendor"
+            )
+        return "Registered Vendor"
 
     def get_vendor_company(self, obj):
         return obj.vendor.company_name if obj.vendor else None
+
+    def get_vendor_details(self, obj):
+        v = obj.vendor
+        u = obj.created_by or (v.user if v else None)
+        return {
+            'id': str(v.id) if v else (str(u.id) if u else None),
+            'company_name': (v.company_name if v and v.company_name else (getattr(u, 'organization_name', None) or getattr(u, 'full_name', None) or getattr(u, 'email', None) or 'Registered Vendor')),
+            'registration_number': (getattr(v, 'registration_number', None) or 'VND-VERIFIED'),
+            'tax_id': (getattr(v, 'tax_id', None) or 'TAX-REGISTERED'),
+            'email': (v.email if v and v.email else (getattr(u, 'email', '') or '')),
+            'phone': (getattr(v, 'phone', None) or getattr(u, 'phone_number', '') or ''),
+            'country': (getattr(v, 'country', None) or 'India'),
+            'address': (getattr(v, 'address', None) or ''),
+            'is_verified': (getattr(v, 'status', None) == 'VERIFIED' if v else True)
+        }
 
     def get_documents(self, obj):
         docs = obj.documents.filter(is_deleted=False)

@@ -646,9 +646,12 @@ class BidAccessLog(models.Model):
 
         actor_name = None
         actor_role = None
+        actor_user = actor if (actor and hasattr(actor, '_meta')) else None
         if actor and hasattr(actor, 'full_name'):
             actor_name = actor.full_name
             actor_role = getattr(actor, 'role', None)
+        elif actor and hasattr(actor, 'email'):
+            actor_name = actor.email
 
         # Sanitize metadata — remove sensitive fields
         safe_metadata = {}
@@ -660,7 +663,7 @@ class BidAccessLog(models.Model):
 
         return cls.objects.create(
             bid=bid,
-            actor=actor,
+            actor=actor_user,
             actor_name=actor_name,
             actor_role=actor_role,
             action=action,
