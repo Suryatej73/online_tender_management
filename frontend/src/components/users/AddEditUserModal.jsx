@@ -26,6 +26,9 @@ export default function AddEditUserModal({ user, onClose, onSuccess, organizatio
       if (!payload.password) delete payload.password;
       if (!payload.organization) delete payload.organization;
       if (!payload.department) delete payload.department;
+      if (!payload.username && payload.email) {
+        payload.username = payload.email.split('@')[0];
+      }
       if (isEditing) await usersApi.updateUser(user.id, payload);
       else await usersApi.createUser(payload);
       onSuccess(); onClose();

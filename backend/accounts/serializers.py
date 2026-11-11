@@ -186,6 +186,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserCreateUpdateSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
 
     class Meta:
@@ -199,11 +200,16 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop('password', 'DefaultPass123!')
         if 'username' not in validated_data or not validated_data['username']:
-            username = validated_data['email'].split('@')[0]
-            count = User.objects.filter(username__startswith=username).count()
-            if count > 0:
-                username = f"{username}_{count + 1}"
+            base_username = validated_data['email'].split('@')[0]
+            username = base_username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}_{counter}"
+                counter += 1
             validated_data['username'] = username
+
+        if 'is_email_verified' not in validated_data:
+            validated_data['is_email_verified'] = True
 
         user = User.objects.create_user(
             password=password,

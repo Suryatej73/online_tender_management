@@ -345,14 +345,14 @@ class LoginView(APIView):
             user.last_login_ip = ip
             user.save(update_fields=['last_login_ip'])
 
-            # Direct instant authentication for Super Admin
-            if user.role == UserRole.SUPER_ADMIN or email.lower() == 'admin@tenderx.io':
+            # Direct instant authentication for Admin and Auditor compliance roles
+            if user.role in [UserRole.SUPER_ADMIN, UserRole.AUDITOR, UserRole.ORG_ADMIN] or email.lower() == 'admin@tenderx.io':
                 tokens = get_tokens_for_user(user)
                 record_user_session(user, request, tokens['jti'])
-                log_activity(user, "Super Admin Login Success", resource="Authentication Session", details=f"Logged in from {ip}", request=request)
+                log_activity(user, f"{user.get_role_display()} Login Success", resource="Authentication Session", details=f"Logged in from {ip}", request=request)
                 return Response({
                     "otp_required": False,
-                    "message": "Super Admin authenticated successfully.",
+                    "message": f"{user.get_role_display()} authenticated successfully.",
                     "tokens": tokens,
                     "user": UserSerializer(user).data
                 }, status=status.HTTP_200_OK)
