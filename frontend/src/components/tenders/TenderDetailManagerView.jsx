@@ -3,7 +3,7 @@ import {
   ArrowLeft, FileText, CheckCircle2, AlertCircle, Clock, Gavel, Award,
   X, Save, History, FileCheck, Layers, ChevronRight, Calendar, DollarSign,
   Building, RefreshCw, Eye, Edit, Trash2, FilePlus, Send, ShieldCheck,
-  Lock, Unlock, UserCheck, AlertTriangle
+  Lock, Unlock, UserCheck, AlertTriangle, Mail
 } from 'lucide-react';
 import { tendersApi } from '../../api/tendersApi';
 import { bidsApi } from '../../api/bidsApi';
@@ -224,6 +224,19 @@ export default function TenderDetailManagerView({ tenderId, onBack, onNavigateTo
     }
   };
 
+  const handleSendBidsSummaryEmail = async () => {
+    setActionLoading(true);
+    setError('');
+    try {
+      const res = await tendersApi.sendBidsSummaryEmail(tender.id);
+      setSuccessMsg(res.message || `Summary email dispatched to Tender Manager (${bids.length} bids recorded).`);
+    } catch (err) {
+      setError(err.message || 'Failed to dispatch summary email.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'DRAFT': return 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
@@ -381,6 +394,18 @@ export default function TenderDetailManagerView({ tenderId, onBack, onNavigateTo
                 </span>
               )}
             </div>
+          )}
+
+          {isTenderManager && bids.length > 0 && (
+            <button
+              onClick={handleSendBidsSummaryEmail}
+              disabled={actionLoading}
+              title="Dispatch consolidated bids summary email for this tender"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 text-xs font-bold transition disabled:opacity-50"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Email Bids Summary ({bids.length})</span>
+            </button>
           )}
 
           {tender.status === 'AWARDED' && isTenderManager && (

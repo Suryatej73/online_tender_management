@@ -164,6 +164,14 @@ export const tendersApi = {
     });
   },
 
+  // Bids Summary Email
+  async sendBidsSummaryEmail(id) {
+    return fetchWithAuth(`${API_BASE_URL}/tenders/${id}/send-summary-email/`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  },
+
   // Categories
   async getCategories() {
     return fetchWithAuth(`${API_BASE_URL}/tender-categories/`);

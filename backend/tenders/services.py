@@ -75,6 +75,14 @@ class TenderLifecycleService:
         elif target_status == TenderStatus.EVALUATION:
             if not tender.evaluation_start_date:
                 tender.evaluation_start_date = now
+            # Dispatch consolidated bids summary to Tender Manager and evaluation queue notice to Evaluators
+            try:
+                from core.email_service import TenderXEmailService
+                bids_count = tender.bids.filter(is_deleted=False).count()
+                TenderXEmailService.notify_tender_manager_bids_summary(tender, bids_count=bids_count)
+                TenderXEmailService.notify_evaluators_bids_pending(tender, bids_count=bids_count)
+            except Exception as e:
+                print(f"[WARN] Failed to dispatch tender evaluation emails: {e}")
 
         elif target_status == TenderStatus.AWARDED:
             if not tender.award_date:

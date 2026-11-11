@@ -482,6 +482,40 @@ class TenderTransitionView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
+class TenderBidsSummaryNotifyView(APIView):
+    """
+    Allow Tender Manager or Admin to dispatch/re-dispatch the consolidated
+    bids summary email notification for a specific tender on demand.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk):
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return Response({"success": False, "message": "Authentication required."},
+                          status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            tender = Tender.objects.get(id=pk, is_deleted=False)
+        except Tender.DoesNotExist:
+            return Response({"success": False, "message": "Tender not found."},
+                          status=status.HTTP_404_NOT_FOUND)
+
+        bids_count = tender.bids.filter(is_deleted=False).count()
+        from core.email_service import TenderXEmailService
+        TenderXEmailService.notify_tender_manager_bids_summary(tender, bids_count=bids_count)
+
+        return Response({
+            "success": True,
+            "message": f"Bids summary email dispatched to Tender Manager: {bids_count} bids submitted for '{tender.title}'.",
+            "data": {
+                "tender_id": str(tender.id),
+                "tender_number": tender.tender_number,
+                "bids_count": bids_count,
+            }
+        }, status=status.HTTP_200_OK)
+
+
 class TenderCategoryView(APIView):
     permission_classes = [permissions.AllowAny]
 

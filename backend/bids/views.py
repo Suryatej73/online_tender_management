@@ -1086,6 +1086,15 @@ class BidOpeningView(APIView):
             opening.integrity_checks_failed = integrity_failed
             opening.save()
 
+            # Dispatch consolidated bids summary to Tender Manager and evaluation queue notice to Evaluators
+            try:
+                from core.email_service import TenderXEmailService
+                bids_count = locked_bids.count() or tender.bids.filter(is_deleted=False).count()
+                TenderXEmailService.notify_tender_manager_bids_summary(tender, bids_count=bids_count)
+                TenderXEmailService.notify_evaluators_bids_pending(tender, bids_count=bids_count)
+            except Exception as e:
+                print(f"[WARN] Failed to dispatch bid opening notifications: {e}")
+
             BidAccessLog.log(
                 actor=user, action='TECHNICAL_OPENING_COMPLETED',
                 resource_type='BidOpening', resource_id=str(opening.id),
@@ -1317,9 +1326,25 @@ class BidEvaluateView(APIView):
         if action == 'disqualify':
             bid.status = BidStatus.DISQUALIFIED
             action_msg = "Bid successfully disqualified for non-compliance."
+            try:
+                from core.email_service import TenderXEmailService
+                TenderXEmailService.notify_vendor_bid_rejected(
+                    bid,
+                    reason=remarks or "Bid proposal disqualified by evaluation committee for non-compliance."
+                )
+            except Exception as e:
+                print(f"[WARN] Failed to dispatch disqualification email: {e}")
         elif action == 'reject':
             bid.status = BidStatus.REJECTED
             action_msg = "Bid proposal rejected."
+            try:
+                from core.email_service import TenderXEmailService
+                TenderXEmailService.notify_vendor_bid_rejected(
+                    bid,
+                    reason=remarks or "Bid proposal rejected by evaluation committee."
+                )
+            except Exception as e:
+                print(f"[WARN] Failed to dispatch rejection email: {e}")
         elif action == 'audit_certify':
             bid.status = BidStatus.EVALUATED
             admin_name = getattr(user, 'full_name', '') or user.email
@@ -1387,13 +1412,30 @@ class BidAwardView(APIView):
         bid.notes = f"{bid.notes or ''}\n[AWARD]: {award_notes}".strip()
         bid.save(update_fields=['status', 'notes'])
 
-        # Reject other active bids for this tender
-        Bid.objects.filter(
+        # Notify winning vendor via official award email
+        try:
+            from core.email_service import TenderXEmailService
+            TenderXEmailService.notify_vendor_bid_awarded(bid, award_notes=award_notes)
+        except Exception as e:
+            print(f"[WARN] Failed to dispatch bid award email: {e}")
+
+        # Reject other active bids for this tender and send formal rejection notifications
+        other_bids = list(Bid.objects.filter(
             tender=tender,
             is_deleted=False
-        ).exclude(id=bid.id).exclude(status__in=[BidStatus.WITHDRAWN, BidStatus.DISQUALIFIED]).update(
-            status=BidStatus.REJECTED
-        )
+        ).exclude(id=bid.id).exclude(status__in=[BidStatus.WITHDRAWN, BidStatus.DISQUALIFIED]))
+
+        for other_bid in other_bids:
+            other_bid.status = BidStatus.REJECTED
+            other_bid.save(update_fields=['status'])
+            try:
+                from core.email_service import TenderXEmailService
+                TenderXEmailService.notify_vendor_bid_rejected(
+                    other_bid,
+                    reason=f"Evaluation concluded. Contract awarded to {bid.vendor.company_name} (Winning Bid {bid.bid_reference})."
+                )
+            except Exception as e:
+                print(f"[WARN] Failed to dispatch rejection email to {other_bid.bid_reference}: {e}")
 
         # Transition tender to AWARDED
         tender.status = TenderStatus.AWARDED
