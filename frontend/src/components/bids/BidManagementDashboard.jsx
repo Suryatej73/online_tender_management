@@ -389,6 +389,7 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
                 <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: '700', color: 'var(--text-muted)' }}>Tender</th>
                 <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: '700', color: 'var(--text-muted)' }}>Vendor</th>
                 <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: '700', color: 'var(--text-muted)' }}>Status</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: '700', color: 'var(--text-muted)' }}>Evaluation Score</th>
                 <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: '700', color: 'var(--text-muted)' }}>Docs</th>
                 <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: '700', color: 'var(--text-muted)' }}>Deadline</th>
                 <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: '700', color: 'var(--text-muted)' }}>Actions</th>
@@ -418,6 +419,42 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
                         {b.status_display || b.status}
                       </span>
                     </td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                      {b.technical_bid?.technical_score != null ? (
+                        <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <span style={{
+                            padding: '0.2rem 0.65rem',
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: '800',
+                            background: 'rgba(168, 85, 247, 0.15)',
+                            color: '#c084fc',
+                            border: '1px solid rgba(168, 85, 247, 0.3)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}>
+                            ⭐ {parseFloat(b.technical_bid.technical_score).toFixed(1)} / 100
+                          </span>
+                          {b.technical_bid.evaluation_remarks && (
+                            <span
+                              style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.6)', marginTop: '0.2rem', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                              title={b.technical_bid.evaluation_remarks}
+                            >
+                              "{b.technical_bid.evaluation_remarks}"
+                            </span>
+                          )}
+                        </div>
+                      ) : b.status === 'DISQUALIFIED' ? (
+                        <span style={{ padding: '0.2rem 0.55rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: '700', background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>
+                          Disqualified
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Pending Scoring
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                       {b.document_count || 0}
                     </td>
@@ -427,20 +464,52 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
                       </span>
                     </td>
                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleViewBid(b.id)}
-                        className="btn-action"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                      >
-                        View Details
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>
+                        {!isVendor && b.status === 'EVALUATED' && (
+                          <button
+                            onClick={async () => {
+                              const vName = b.vendor_name || 'selected vendor';
+                              if (!window.confirm(`OFFICIAL CONTRACT AWARD: Confirm award to ${vName} for Tender ${b.tender_number || 'solicitation'}?`)) return;
+                              try {
+                                await bidsApi.awardBid(b.id, { notes: `Contract officially awarded to ${vName}` });
+                                alert(`Contract successfully awarded to ${vName}!`);
+                                loadDashboard();
+                              } catch (err) {
+                                alert('Failed to award contract: ' + err.message);
+                              }
+                            }}
+                            className="btn-action"
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              fontSize: '0.75rem',
+                              fontWeight: '800',
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              color: '#fff',
+                              border: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}
+                            title="Officially award contract to this evaluated vendor"
+                          >
+                            <span>🏆 Award</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleViewBid(b.id)}
+                          className="btn-action"
+                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                        >
+                          View Details
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
               {bids.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No proposals submitted yet. Click "+ Create New Bid" above to submit your first proposal.
                   </td>
                 </tr>

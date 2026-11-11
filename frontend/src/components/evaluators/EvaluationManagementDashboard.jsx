@@ -308,42 +308,182 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
           ) : (
             <div className="space-y-3">
               {evaluationTenders.map(t => {
-                const tenderBids = bids.filter(b => b.tender?.id === t.id || b.tender === t.id);
+                const tenderBids = bids.filter(b => b.tender?.id === t.id || b.tender === t.id || b.tender_number === t.tender_number);
+                const scoredBids = tenderBids.filter(b => b.technical_bid?.technical_score != null);
+
                 return (
                   <div
                     key={t.id}
-                    className="p-4 rounded-xl bg-white/[0.02] hover:bg-white/5 border border-white/10 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    className="p-5 rounded-xl bg-[#0a0d16] border border-white/10 transition-all space-y-4 shadow-lg"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/20">
-                          {t.tender_number}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                          t.status === 'EVALUATION'
-                            ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
-                            : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                        }`}>
-                          {t.status}
-                        </span>
-                        <span className="text-xs text-slate-400">• {t.effective_org_name || 'Procurement Authority'}</span>
+                    {/* Tender Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-white/5">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-orange-400 bg-orange-500/10 px-2.5 py-0.5 rounded border border-orange-500/20">
+                            {t.tender_number}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                            t.status === 'EVALUATION'
+                              ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          }`}>
+                            {t.status}
+                          </span>
+                          <span className="text-xs text-slate-400">• {t.effective_org_name || 'Procurement Authority'}</span>
+                        </div>
+                        <h4 className="font-extrabold text-white text-base">{t.title}</h4>
+                        <div className="flex items-center gap-4 text-xs text-slate-400 font-mono pt-1">
+                          <span>Budget: <strong className="text-white">${parseFloat(t.budget || 0).toLocaleString()}</strong></span>
+                          <span>Total Proposals: <strong className="text-purple-400">{tenderBids.length}</strong></span>
+                          <span>Scored by Evaluators: <strong className="text-emerald-400 font-bold">{scoredBids.length}</strong></span>
+                          <span>Deadline: {t.submission_deadline ? new Date(t.submission_deadline).toLocaleDateString() : 'N/A'}</span>
+                        </div>
                       </div>
-                      <h4 className="font-bold text-white text-sm">{t.title}</h4>
-                      <div className="flex items-center gap-4 text-xs text-slate-400 font-mono pt-1">
-                        <span>Budget: <strong className="text-white">${parseFloat(t.budget || 0).toLocaleString()}</strong></span>
-                        <span>Proposals: <strong className="text-purple-400">{tenderBids.length} bids</strong></span>
-                        <span>Deadline: {t.submission_deadline ? new Date(t.submission_deadline).toLocaleDateString() : 'N/A'}</span>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSearch(t.tender_number || t.title);
+                            setActiveSubTab('bids');
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-bold transition"
+                        >
+                          <Gavel className="w-3.5 h-3.5" />
+                          <span>Scoring Queue ({tenderBids.length})</span>
+                        </button>
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => onNavigateToTender ? onNavigateToTender(t.id) : null}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 text-white font-bold text-xs shadow-md shadow-purple-500/20 transition self-start sm:self-center shrink-0"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Open Evaluation Matrix</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    {/* Evaluated Proposals & Direct Scoring Matrix */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-extrabold text-white flex items-center gap-2">
+                          <Award className="w-4 h-4 text-amber-400" />
+                          <span>Submitted Vendor Proposals & Committee Evaluation Scores</span>
+                        </span>
+                        {scoredBids.length > 0 && isTenderManager && (
+                          <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                            ✓ Ready for Contract Award
+                          </span>
+                        )}
+                      </div>
+
+                      {tenderBids.length === 0 ? (
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-dashed border-white/10 text-center text-xs text-slate-400">
+                          No vendor proposals have been submitted for this tender yet.
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {tenderBids.map((b, bIdx) => {
+                            const tech = b.technical_bid;
+                            const fin = b.financial_bid;
+                            const isAwarded = b.status === 'AWARDED';
+                            const vendorName = b.vendor_name || b.vendor?.company_name || 'Vendor Entity';
+                            const score = tech?.technical_score;
+
+                            return (
+                              <div
+                                key={b.id || bIdx}
+                                className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                                  isAwarded
+                                    ? 'bg-emerald-950/25 border-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                                    : 'bg-[#060910] border-white/10 hover:border-white/20'
+                                }`}
+                              >
+                                <div className="space-y-1.5 flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono text-xs font-bold text-orange-400 bg-white/5 px-2 py-0.5 rounded">
+                                      {b.bid_reference}
+                                    </span>
+                                    <span className="font-extrabold text-white text-sm">
+                                      {vendorName}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                      isAwarded ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                      b.status === 'EVALUATED' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                                      b.status === 'DISQUALIFIED' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                                      'bg-white/5 text-slate-300'
+                                    }`}>
+                                      {b.status}
+                                    </span>
+                                  </div>
+
+                                  {/* Evaluation Score Display */}
+                                  <div className="flex items-center gap-3 flex-wrap pt-1">
+                                    {score != null ? (
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-500/25 text-purple-200 border border-purple-500/50 font-mono font-black text-xs shadow-sm">
+                                          ⭐ Technical Score: {score} / 100
+                                        </span>
+                                        {tech.evaluation_remarks && (
+                                          <span className="text-xs text-slate-200 italic font-medium">
+                                            "{tech.evaluation_remarks}"
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : b.status === 'DISQUALIFIED' ? (
+                                      <span className="text-xs font-bold text-red-400 flex items-center gap-1">
+                                        <XCircle className="w-3.5 h-3.5" /> Disqualified by Evaluation Committee
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 italic flex items-center gap-1">
+                                        <Clock className="w-3.5 h-3.5 text-purple-400" /> Under Evaluation (Awaiting Committee Score)
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Financial pricing if unsealed */}
+                                  {fin?.final_amount ? (
+                                    <div className="text-xs text-slate-400 font-mono pt-0.5">
+                                      Commercial Quote: <strong className="text-emerald-400 font-bold">${parseFloat(fin.final_amount).toLocaleString()} {fin.currency || 'INR'}</strong>
+                                    </div>
+                                  ) : (
+                                    <div className="text-[11px] text-slate-500 font-mono pt-0.5">
+                                      Commercial Quote: Sealed in escrow until final award
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Award Actions for Tender Manager */}
+                                <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                                  {isTenderManager && !isAwarded && b.status === 'EVALUATED' && (
+                                    <button
+                                      onClick={() => handleAwardContract(b)}
+                                      disabled={actionLoading}
+                                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 flex items-center gap-1.5 transition"
+                                      title="Officially award procurement contract to this winning bidder"
+                                    >
+                                      <Award className="w-4 h-4" />
+                                      <span>Award Contract</span>
+                                    </button>
+                                  )}
+
+                                  {isAwarded && (
+                                    <span className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-black text-xs flex items-center gap-1.5 shadow-sm">
+                                      <Award className="w-4 h-4" />
+                                      <span>🏆 Contract Awarded</span>
+                                    </span>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSearch(b.bid_reference || vendorName);
+                                      setActiveSubTab('bids');
+                                    }}
+                                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold transition flex items-center gap-1"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Details</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -403,7 +543,7 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
                             {b.bid_reference}
                           </span>
                           <span className="font-bold text-white text-sm">
-                            {b.vendor?.company_name || 'Vendor Entity'}
+                            {b.vendor_name || b.vendor?.company_name || 'Vendor Entity'}
                           </span>
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                             isAwarded ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-slate-300'
@@ -412,7 +552,7 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
                           </span>
                         </div>
                         <span className="text-xs text-slate-400 mt-1 block">
-                          Tender: <strong className="text-white">{b.tender?.title || b.tender?.tender_number || b.tender}</strong>
+                          Tender: <strong className="text-white">{b.tender_title || b.tender?.title || b.tender_number || b.tender}</strong>
                         </span>
                       </div>
 

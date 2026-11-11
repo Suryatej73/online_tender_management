@@ -370,10 +370,17 @@ export default function TenderDetailManagerView({ tenderId, onBack, onNavigateTo
           )}
 
           {tender.status === 'EVALUATION' && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-purple-300 bg-purple-500/15 border border-purple-500/30">
-              <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
-              <span>Under Formal Committee Evaluation</span>
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-purple-300 bg-purple-500/15 border border-purple-500/30">
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                <span>Under Evaluation</span>
+              </span>
+              {tender.top_evaluation_score && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black text-emerald-300 bg-emerald-500/20 border border-emerald-500/30">
+                  ⭐ Scored: {tender.top_evaluation_score.score} / 100 ({tender.top_evaluation_score.vendor_name}) — Ready to Award
+                </span>
+              )}
+            </div>
           )}
 
           {tender.status === 'AWARDED' && isTenderManager && (
@@ -591,7 +598,7 @@ export default function TenderDetailManagerView({ tenderId, onBack, onNavigateTo
                           <div>
                             <div className="flex items-center gap-2">
                               <h4 className="font-extrabold text-sm text-white">
-                                {b.vendor?.company_name || 'Vendor Entity'}
+                                {b.vendor_name || b.vendor?.company_name || 'Vendor Entity'}
                               </h4>
                               <span className="font-mono text-[11px] text-slate-400 bg-white/5 px-2 py-0.5 rounded">
                                 {b.bid_reference}
@@ -656,11 +663,16 @@ export default function TenderDetailManagerView({ tenderId, onBack, onNavigateTo
                             </p>
                           </div>
                           <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                            <span className="text-slate-400">Current Technical Score:</span>
-                            <span className="font-mono font-bold text-white text-sm">
-                              {tech?.technical_score != null ? `${tech.technical_score} / 100` : 'Not Scored Yet'}
+                            <span className="text-slate-400 font-bold">Committee Technical Score:</span>
+                            <span className="font-mono font-black text-sm px-2.5 py-0.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                              {tech?.technical_score != null ? `⭐ ${tech.technical_score} / 100` : 'Pending Evaluation'}
                             </span>
                           </div>
+                          {tech?.evaluation_remarks && (
+                            <div className="pt-1 text-[11px] text-slate-300 italic">
+                              Remarks: "{tech.evaluation_remarks}"
+                            </div>
+                          )}
                         </div>
 
                         {/* Financial Proposal */}

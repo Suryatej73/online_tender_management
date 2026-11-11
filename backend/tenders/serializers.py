@@ -304,6 +304,9 @@ class TenderSerializer(serializers.ModelSerializer):
     created_by_name = serializers.ReadOnlyField(source='created_by.full_name', default=None)
     documents = TenderDocumentSerializer(many=True, read_only=True)
     amendment_count = serializers.SerializerMethodField(read_only=True) if hasattr(serializers, 'SerializerMethodField') else None
+    bids_count = serializers.SerializerMethodField(read_only=True) if hasattr(serializers, 'SerializerMethodField') else None
+    top_evaluation_score = serializers.SerializerMethodField(read_only=True) if hasattr(serializers, 'SerializerMethodField') else None
+    awarded_vendor_name = serializers.SerializerMethodField(read_only=True) if hasattr(serializers, 'SerializerMethodField') else None
 
     class Meta:
         model = Tender
@@ -316,13 +319,49 @@ class TenderSerializer(serializers.ModelSerializer):
             'eligibility_criteria', 'technical_requirements', 'financial_requirements',
             'estimated_value', 'bid_security_required', 'bid_security_amount',
             'contact_person', 'contact_email', 'contact_phone',
-            'version', 'documents', 'amendment_count', 'created_at', 'updated_at'
+            'version', 'documents', 'amendment_count', 'bids_count', 'top_evaluation_score', 'awarded_vendor_name', 'created_at', 'updated_at'
         ]
 
     def get_amendment_count(self, obj):
         if hasattr(obj, 'amendments'):
             return obj.amendments.filter(status='PUBLISHED').count()
         return 0
+
+    def get_bids_count(self, obj):
+        try:
+            return obj.bids.filter(is_deleted=False).count()
+        except Exception:
+            return 0
+
+    def get_top_evaluation_score(self, obj):
+        try:
+            from bids.models import TechnicalBid
+            top_tb = TechnicalBid.objects.filter(
+                bid__tender=obj,
+                bid__is_deleted=False,
+                technical_score__isnull=False
+            ).order_by('-technical_score').first()
+            if top_tb:
+                v_name = top_tb.bid.vendor.company_name if (top_tb.bid.vendor and top_tb.bid.vendor.company_name) else (getattr(top_tb.bid, 'vendor_name', None) or 'Vendor Entity')
+                return {
+                    'score': float(top_tb.technical_score),
+                    'vendor_name': v_name,
+                    'remarks': top_tb.evaluation_remarks or '',
+                    'bid_id': str(top_tb.bid.id),
+                    'bid_reference': top_tb.bid.bid_reference
+                }
+        except Exception:
+            pass
+        return None
+
+    def get_awarded_vendor_name(self, obj):
+        try:
+            awarded_bid = obj.bids.filter(status='AWARDED', is_deleted=False).first()
+            if awarded_bid and awarded_bid.vendor:
+                return awarded_bid.vendor.company_name
+        except Exception:
+            pass
+        return None
 
 
 class TenderCreateUpdateSerializer(serializers.ModelSerializer):

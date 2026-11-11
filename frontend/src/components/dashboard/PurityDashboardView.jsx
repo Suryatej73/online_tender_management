@@ -641,6 +641,20 @@ export default function PurityDashboardView({
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${getBadgeStyle(tender.status)}`}>
                           {tender.status || 'DRAFT'}
                         </span>
+                        {tender.top_evaluation_score && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-extrabold text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/30">
+                              ⭐ {tender.top_evaluation_score.score}/100 ({tender.top_evaluation_score.vendor_name})
+                            </span>
+                          </div>
+                        )}
+                        {tender.status === 'AWARDED' && tender.awarded_vendor_name && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
+                              🏆 Winner: {tender.awarded_vendor_name}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="py-3.5 text-right pr-3 whitespace-nowrap">
                         <button

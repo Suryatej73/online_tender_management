@@ -428,6 +428,20 @@ export default function TenderManagementDashboard({ initialSelectedTenderId, onN
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${getStatusBadge(t.status)}`}>
                         {t.status}
                       </span>
+                      {t.top_evaluation_score && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono font-extrabold text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/30">
+                            ⭐ {t.top_evaluation_score.score} / 100 ({t.top_evaluation_score.vendor_name})
+                          </span>
+                        </div>
+                      )}
+                      {t.status === 'AWARDED' && t.awarded_vendor_name && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
+                            🏆 Winner: {t.awarded_vendor_name}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-3.5 text-slate-400 font-mono text-[11px]">
                       {t.submission_deadline ? new Date(t.submission_deadline).toLocaleDateString() : 'N/A'}
