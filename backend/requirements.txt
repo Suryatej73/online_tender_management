@@ -11,4 +11,5 @@ pyotp>=2.9.0
 qrcode>=7.4.2
 pytest>=7.4.4
 pytest-django>=4.7.0
+selenium>=4.36.0
 dj-database-url>=2.1.0

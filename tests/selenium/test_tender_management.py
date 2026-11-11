@@ -44,38 +44,15 @@ ERROR_ALERT = (
 
 
 def get_manager_auth_from_db():
-    """Retrieve real manager credentials and sign a genuine SimpleJWT access token directly from DB."""
-    try:
-        import os, sys, django
-        from pathlib import Path
-        backend_dir = Path(__file__).resolve().parent.parent.parent / "backend"
-        if str(backend_dir) not in sys.path:
-            sys.path.insert(0, str(backend_dir))
-        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tenderx_backend.settings")
-        django.setup()
-        from django.contrib.auth import get_user_model
-        from rest_framework_simplejwt.tokens import RefreshToken
-        from accounts.serializers import UserSerializer
-
-        User = get_user_model()
-        manager = User.objects.filter(role__in=MANAGER_ROLES, is_active=True).first()
-        if not manager:
-            return None, None
-        refresh = RefreshToken.for_user(manager)
-        token_data = {
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-        }
-        user_data = UserSerializer(manager).data
-        return user_data, token_data
-    except Exception as e:
-        print(f"Could not load manager from DB: {e}")
-        return None, None
+    """Selenium must use a manually authenticated session, never DB-issued tokens."""
+    return None, None
 
 
 @pytest.fixture(scope="module")
-def manager_driver():
+def manager_driver(request):
     """Open Chrome and let the user complete or confirm the real login/OTP flow."""
+    if not request.config.getoption("--manual-selenium-session"):
+        pytest.skip("Tender manager UI flows require --manual-selenium-session and manual OTP login")
     options = webdriver.ChromeOptions()
     options.add_argument("--start-maximized")
 
@@ -123,11 +100,8 @@ def manager_driver():
             try:
                 input("After reaching the TenderX dashboard, press Enter here...")
             except (EOFError, OSError):
-                WebDriverWait(driver, 120).until(
-                    lambda d: d.execute_script(
-                        "return Boolean(localStorage.getItem('access_token') && localStorage.getItem('tenderx_user'));"
-                    )
-                )
+                driver.quit()
+                pytest.fail("Run with -s and complete manual OTP login before continuing.")
 
             user = driver.execute_script(
                 """

@@ -33,7 +33,9 @@ CREATE_MODAL_HEADING = (By.XPATH, "//h3[contains(normalize-space(), 'Create New 
 
 
 @pytest.fixture(scope="module")
-def diag_driver():
+def diag_driver(request):
+    if not request.config.getoption("--manual-selenium-session"):
+        pytest.skip("The diagnostic tender submission flow requires --manual-selenium-session and manual OTP login")
     options = webdriver.ChromeOptions()
     options.add_argument("--start-maximized")
     options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
@@ -52,11 +54,8 @@ def diag_driver():
         try:
             input("After reaching the TenderX dashboard, press Enter here...")
         except (EOFError, OSError):
-            WebDriverWait(driver, 120).until(
-                lambda d: d.execute_script(
-                    "return Boolean(localStorage.getItem('access_token') && localStorage.getItem('tenderx_user'));"
-                )
-            )
+            driver.quit()
+            pytest.fail("Run with -s and complete manual OTP login before continuing.")
 
         user = driver.execute_script(
             "const u = localStorage.getItem('tenderx_user'); return u ? JSON.parse(u) : null;"

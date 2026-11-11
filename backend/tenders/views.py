@@ -376,7 +376,8 @@ class TenderListCreateView(APIView):
 
 
 class TenderDetailView(APIView):
-    permission_classes = [permissions.AllowAny]
+    # Reads remain public; modification is enforced server-side for manager/admin roles.
+    permission_classes = [IsTenderManagerOrAdmin]
 
     def get(self, request, pk):
         try:
