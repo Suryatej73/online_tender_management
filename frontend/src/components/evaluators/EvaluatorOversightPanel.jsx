@@ -9,13 +9,14 @@ export default function EvaluatorOversightPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
   const fetchEvaluators = async () => {
     setLoading(true);
     setError(null);
     try {
       const token = localStorage.getItem('access_token');
-      const res = await fetch('/api/v1/admin/evaluators/', {
+      const res = await fetch(`${API_BASE}/admin/evaluators/`, {
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})

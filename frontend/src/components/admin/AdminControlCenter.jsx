@@ -40,6 +40,7 @@ export default function AdminControlCenter() {
   const [complaintSubject, setComplaintSubject] = useState('');
   const [complaintDesc, setComplaintDesc] = useState('');
 
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
   const token = localStorage.getItem('access_token');
   const headers = {
     'Content-Type': 'application/json',
@@ -48,7 +49,7 @@ export default function AdminControlCenter() {
 
   const fetchActiveSessions = async () => {
     try {
-      const res = await fetch('/api/v1/admin/sessions/', { headers });
+      const res = await fetch(`${API_BASE}/admin/sessions/`, { headers });
       const data = await res.json();
       setActiveSessions(data.sessions || []);
     } catch (err) { }
@@ -57,7 +58,7 @@ export default function AdminControlCenter() {
   const handleRevokeSession = async (sessionId, email) => {
     if (!window.confirm(`Revoke active session for ${email}? User will be logged out immediately.`)) return;
     try {
-      const res = await fetch(`/api/v1/admin/sessions/${sessionId}/revoke/`, {
+      const res = await fetch(`${API_BASE}/admin/sessions/${sessionId}/revoke/`, {
         method: 'DELETE',
         headers
       });
@@ -74,7 +75,7 @@ export default function AdminControlCenter() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/v1/admin/dashboard/', { headers });
+      const res = await fetch(`${API_BASE}/admin/dashboard/`, { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch admin dashboard.');
       setDashboard(data);
@@ -87,7 +88,7 @@ export default function AdminControlCenter() {
 
   const fetchOrganizations = async () => {
     try {
-      const res = await fetch('/api/v1/admin/organizations/', { headers });
+      const res = await fetch(`${API_BASE}/admin/organizations/`, { headers });
       const data = await res.json();
       setOrganizations(data.organizations || []);
     } catch (err) { }
@@ -95,7 +96,7 @@ export default function AdminControlCenter() {
 
   const fetchVendors = async () => {
     try {
-      const res = await fetch('/api/v1/admin/vendors/', { headers });
+      const res = await fetch(`${API_BASE}/admin/vendors/`, { headers });
       const data = await res.json();
       setVendors(data.vendors || []);
     } catch (err) { }
@@ -103,7 +104,7 @@ export default function AdminControlCenter() {
 
   const fetchBlacklists = async () => {
     try {
-      const res = await fetch('/api/v1/admin/blacklists/', { headers });
+      const res = await fetch(`${API_BASE}/admin/blacklists/`, { headers });
       const data = await res.json();
       setBlacklists(data.blacklists || []);
     } catch (err) { }
@@ -111,7 +112,7 @@ export default function AdminControlCenter() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/v1/admin/categories/', { headers });
+      const res = await fetch(`${API_BASE}/admin/categories/`, { headers });
       const data = await res.json();
       setCategories(data.categories || []);
     } catch (err) { }
@@ -119,7 +120,7 @@ export default function AdminControlCenter() {
 
   const fetchTenders = async () => {
     try {
-      const res = await fetch('/api/v1/admin/tenders/', { headers });
+      const res = await fetch(`${API_BASE}/admin/tenders/`, { headers });
       const data = await res.json();
       setTenders(data.tenders || []);
     } catch (err) { }
@@ -127,7 +128,7 @@ export default function AdminControlCenter() {
 
   const fetchComplaints = async () => {
     try {
-      const res = await fetch('/api/v1/admin/complaints/', { headers });
+      const res = await fetch(`${API_BASE}/admin/complaints/`, { headers });
       const data = await res.json();
       setComplaints(data.complaints || []);
     } catch (err) { }
@@ -135,7 +136,7 @@ export default function AdminControlCenter() {
 
   const fetchRiskAlerts = async () => {
     try {
-      const res = await fetch('/api/v1/admin/risk-alerts/', { headers });
+      const res = await fetch(`${API_BASE}/admin/risk-alerts/`, { headers });
       const data = await res.json();
       setRiskAlerts(data.risk_alerts || []);
     } catch (err) { }
@@ -143,7 +144,7 @@ export default function AdminControlCenter() {
 
   const fetchAuditLogs = async () => {
     try {
-      const res = await fetch('/api/v1/admin/audit-logs/', { headers });
+      const res = await fetch(`${API_BASE}/admin/audit-logs/`, { headers });
       const data = await res.json();
       setAuditLogs(data.audit_logs || []);
     } catch (err) { }
@@ -151,7 +152,7 @@ export default function AdminControlCenter() {
 
   const fetchSystemSettings = async () => {
     try {
-      const res = await fetch('/api/v1/admin/settings/', { headers });
+      const res = await fetch(`${API_BASE}/admin/settings/`, { headers });
       const data = await res.json();
       setSystemSettings(data.settings || []);
     } catch (err) { }
@@ -159,7 +160,7 @@ export default function AdminControlCenter() {
 
   const fetchUsersList = async () => {
     try {
-      const res = await fetch('/api/v1/admin/users/', { headers });
+      const res = await fetch(`${API_BASE}/admin/users/`, { headers });
       const data = await res.json();
       setUsersList(data.users || []);
     } catch (err) { }
@@ -173,7 +174,7 @@ export default function AdminControlCenter() {
     if (!newRole || newRole.trim().toUpperCase() === user.role) return;
 
     try {
-      const res = await fetch(`/api/v1/admin/users/${user.id}/role/`, {
+      const res = await fetch(`${API_BASE}/admin/users/${user.id}/role/`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ role: newRole.trim().toUpperCase() })
@@ -194,7 +195,7 @@ export default function AdminControlCenter() {
     if (reason === null) return;
 
     try {
-      const res = await fetch(`/api/v1/admin/users/${user.id}/status/`, {
+      const res = await fetch(`${API_BASE}/admin/users/${user.id}/status/`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ action: targetAction, reason })
@@ -231,7 +232,7 @@ export default function AdminControlCenter() {
     }
 
     try {
-      const endpoint = `/api/v1/admin/vendors/${vendorId}/${actionType}/`;
+      const endpoint = `${API_BASE}/admin/vendors/${vendorId}/${actionType}/`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers,
@@ -258,7 +259,7 @@ export default function AdminControlCenter() {
       return;
     }
     try {
-      const res = await fetch(`/api/v1/admin/tenders/${tenderId}/cancel/`, {
+      const res = await fetch(`${API_BASE}/admin/tenders/${tenderId}/cancel/`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ action: 'CANCEL', reason: reasonInput })
@@ -280,7 +281,7 @@ export default function AdminControlCenter() {
     e.preventDefault();
     if (!categoryName) return;
     try {
-      const res = await fetch('/api/v1/admin/categories/', {
+      const res = await fetch(`${API_BASE}/admin/categories/`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ name: categoryName, description: categoryDesc })
@@ -303,7 +304,7 @@ export default function AdminControlCenter() {
       return;
     }
     try {
-      const res = await fetch(`/api/v1/admin/complaints/${complaintId}/resolve/`, {
+      const res = await fetch(`${API_BASE}/admin/complaints/${complaintId}/resolve/`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ resolution_notes: reasonInput })
@@ -323,7 +324,7 @@ export default function AdminControlCenter() {
     e.preventDefault();
     if (!complaintSubject || !complaintDesc) return;
     try {
-      const res = await fetch('/api/v1/admin/complaints/', {
+      const res = await fetch(`${API_BASE}/admin/complaints/`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ subject: complaintSubject, description: complaintDesc, category: 'PLATFORM' })
@@ -342,7 +343,7 @@ export default function AdminControlCenter() {
 
   const exportAuditLogsCSV = async () => {
     try {
-      const res = await fetch('/api/v1/admin/audit-logs/export/', {
+      const res = await fetch(`${API_BASE}/admin/audit-logs/export/`, {
         method: 'GET',
         headers
       });
