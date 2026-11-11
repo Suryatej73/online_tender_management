@@ -1,5 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+import { getAuthToken, tryRefreshToken, ensureAuthToken } from './tendersApi';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 async function handleResponse(response) {
   if (!response.ok) {
@@ -19,28 +20,34 @@ async function handleResponse(response) {
   return response.json();
 }
 
-function getAuthHeaders() {
-  let token = localStorage.getItem('access_token');
-  if (!token) {
-    const tenderxTokens = localStorage.getItem('tenderx_tokens');
-    if (tenderxTokens) {
-      try {
-        const parsed = JSON.parse(tenderxTokens);
-        token = parsed.access || parsed.token;
-      } catch (e) {}
+async function fetchWithAuth(url, options = {}) {
+  let token = await ensureAuthToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+
+  let response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    const refreshedToken = await tryRefreshToken();
+    if (refreshedToken) {
+      const retryHeaders = {
+        ...headers,
+        'Authorization': `Bearer ${refreshedToken}`
+      };
+      response = await fetch(url, { ...options, headers: retryHeaders });
     }
   }
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-  };
+
+  return handleResponse(response);
 }
 
 export const vendorsApi = {
   // ────────────── Dashboard ──────────────
   async getDashboard() {
-    const response = await fetch(`${API_BASE_URL}/vendors/dashboard/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/dashboard/`);
   },
 
   // ────────────── Vendor CRUD ──────────────
@@ -49,54 +56,50 @@ export const vendorsApi = {
     Object.entries(filters).forEach(([key, val]) => {
       if (val) query.append(key, val);
     });
-    const response = await fetch(`${API_BASE_URL}/vendors/?${query.toString()}`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/?${query.toString()}`);
   },
 
   async getVendorDetail(id) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${id}/`);
   },
 
   async createVendor(data) {
-    const response = await fetch(`${API_BASE_URL}/vendors/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data)
+    return fetchWithAuth(`${API_BASE_URL}/vendors/`, {
+      method: 'POST',
+      body: JSON.stringify(data)
     });
-    return handleResponse(response);
   },
 
   async updateVendor(id, data) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/`, {
-      method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(data)
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${id}/`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
     });
-    return handleResponse(response);
   },
 
   async deleteVendor(id) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/`, {
-      method: 'DELETE', headers: getAuthHeaders()
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${id}/`, {
+      method: 'DELETE'
     });
-    return handleResponse(response);
   },
 
   // ────────────── Verification ──────────────
   async getPendingVendors() {
-    const response = await fetch(`${API_BASE_URL}/vendors/pending/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/pending/`);
   },
 
   async verifyVendor(id, reason = '') {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/verify/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ reason })
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${id}/verify/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
     });
-    return handleResponse(response);
   },
 
   async rejectVendor(id, reason = '') {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/reject/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ reason })
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${id}/reject/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
     });
-    return handleResponse(response);
   },
 
   // ────────────── Documents ──────────────
@@ -104,174 +107,162 @@ export const vendorsApi = {
     const url = docStatus
       ? `${API_BASE_URL}/vendors/${vendorId}/documents/?status=${docStatus}`
       : `${API_BASE_URL}/vendors/${vendorId}/documents/`;
-    const response = await fetch(url, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(url);
   },
 
   async uploadDocument(vendorId, docData) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/documents/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(docData)
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/documents/`, {
+      method: 'POST',
+      body: JSON.stringify(docData)
     });
-    return handleResponse(response);
   },
 
   async verifyDocument(docId, action, remarks = '') {
-    const response = await fetch(`${API_BASE_URL}/documents/${docId}/verify/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ action, remarks })
+    return fetchWithAuth(`${API_BASE_URL}/documents/${docId}/verify/`, {
+      method: 'POST',
+      body: JSON.stringify({ action, remarks })
     });
-    return handleResponse(response);
   },
 
   async deleteDocument(vendorId, docId) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/documents/${docId}/`, {
-      method: 'DELETE', headers: getAuthHeaders()
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/documents/${docId}/`, {
+      method: 'DELETE'
     });
-    return handleResponse(response);
   },
 
   // ────────────── Categories ──────────────
   async getVendorCategories() {
-    const response = await fetch(`${API_BASE_URL}/vendor-categories/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendor-categories/`);
   },
 
   async createVendorCategory(data) {
-    const response = await fetch(`${API_BASE_URL}/vendor-categories/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data)
+    return fetchWithAuth(`${API_BASE_URL}/vendor-categories/`, {
+      method: 'POST',
+      body: JSON.stringify(data)
     });
-    return handleResponse(response);
   },
 
   async assignCategory(vendorId, categoryId, data = {}) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/categories/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ category_id: categoryId, ...data })
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/categories/`, {
+      method: 'POST',
+      body: JSON.stringify({ category_id: categoryId, ...data })
     });
-    return handleResponse(response);
   },
 
   // ────────────── Ratings ──────────────
   async getVendorRatings(vendorId) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/ratings/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/ratings/`);
   },
 
   async submitRating(vendorId, ratingData) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/ratings/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(ratingData)
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/ratings/`, {
+      method: 'POST',
+      body: JSON.stringify(ratingData)
     });
-    return handleResponse(response);
   },
 
   // ────────────── Reviews ──────────────
   async getVendorReviews(vendorId) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/reviews/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/reviews/`);
   },
 
   async submitReview(vendorId, reviewData) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/reviews/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(reviewData)
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/reviews/`, {
+      method: 'POST',
+      body: JSON.stringify(reviewData)
     });
-    return handleResponse(response);
   },
 
   async moderateReview(reviewId, status, remarks = '') {
-    const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}/moderate/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ status, remarks })
+    return fetchWithAuth(`${API_BASE_URL}/reviews/${reviewId}/moderate/`, {
+      method: 'POST',
+      body: JSON.stringify({ status, remarks })
     });
-    return handleResponse(response);
   },
 
   async respondToReview(vendorId, reviewId, response_text) {
-    const resp = await fetch(`${API_BASE_URL}/vendors/${vendorId}/reviews/${reviewId}/respond/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ response: response_text })
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/reviews/${reviewId}/respond/`, {
+      method: 'POST',
+      body: JSON.stringify({ response: response_text })
     });
-    return handleResponse(resp);
   },
 
   // ────────────── Performance ──────────────
   async getVendorPerformance(vendorId) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/performance/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/performance/`);
   },
 
   // ────────────── Status Management ──────────────
   async suspendVendor(id, reason, remarks = '', endDate = null) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/suspend/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ reason, remarks, end_date: endDate })
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${id}/suspend/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, remarks, end_date: endDate })
     });
-    return handleResponse(response);
   },
 
   async blacklistVendor(id, reason, description = '', isPermanent = false, evidenceFile = null) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/blacklist/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ reason, description, is_permanent: isPermanent, evidence_file: evidenceFile })
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${id}/blacklist/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, description, is_permanent: isPermanent, evidence_file: evidenceFile })
     });
-    return handleResponse(response);
   },
 
   async reinstateVendor(id, reason = '') {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/reinstate/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ reason })
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${id}/reinstate/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
     });
-    return handleResponse(response);
   },
 
   // ────────────── Audit Logs ──────────────
   async getVendorAuditLogs(vendorId) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/audit-logs/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/audit-logs/`);
   },
 
   async getAllAuditLogs(filters = {}) {
     const query = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => { if (v) query.append(k, v); });
-    const response = await fetch(`${API_BASE_URL}/vendor-audit-logs/?${query.toString()}`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendor-audit-logs/?${query.toString()}`);
   },
 
   // ────────────── Notifications ──────────────
   async getVendorNotifications(vendorId) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/notifications/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/notifications/`);
   },
 
   async markNotificationsRead(vendorId, notificationIds = []) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/notifications/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ notification_ids: notificationIds })
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/notifications/`, {
+      method: 'POST',
+      body: JSON.stringify({ notification_ids: notificationIds })
     });
-    return handleResponse(response);
   },
 
   // ────────────── Eligibility ──────────────
   async checkEligibility(vendorId) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/eligibility/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/eligibility/`);
   },
 
   // ────────────── Certifications ──────────────
   async getVendorCertifications(vendorId) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/certifications/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/certifications/`);
   },
 
   async addCertification(vendorId, certData) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/certifications/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(certData)
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/certifications/`, {
+      method: 'POST',
+      body: JSON.stringify(certData)
     });
-    return handleResponse(response);
   },
 
   // ────────────── Experience ──────────────
   async getVendorExperience(vendorId) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/experience/`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/experience/`);
   },
 
   async addExperience(vendorId, expData) {
-    const response = await fetch(`${API_BASE_URL}/vendors/${vendorId}/experience/`, {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(expData)
+    return fetchWithAuth(`${API_BASE_URL}/vendors/${vendorId}/experience/`, {
+      method: 'POST',
+      body: JSON.stringify(expData)
     });
-    return handleResponse(response);
   },
 };

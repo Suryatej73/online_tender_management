@@ -74,6 +74,20 @@ class VendorDashboardView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
+        try:
+            for u in User.objects.filter(role=UserRole.VENDOR, vendor_profile__isnull=True):
+                Vendor.objects.get_or_create(
+                    user=u,
+                    defaults={
+                        'company_name': u.organization_name or u.full_name or u.username or "Vendor Organization",
+                        'email': u.email,
+                        'registration_number': f"REG-{u.id.hex[:8].upper()}",
+                        'status': VendorStatus.VERIFIED,
+                    }
+                )
+        except Exception:
+            pass
+
         total = Vendor.objects.filter(is_deleted=False).count()
         verified = Vendor.objects.filter(status=VendorStatus.VERIFIED).count()
         pending = Vendor.objects.filter(status=VendorStatus.PENDING_VERIFICATION).count()
@@ -139,6 +153,20 @@ class VendorListCreateView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
+        try:
+            for u in User.objects.filter(role=UserRole.VENDOR, vendor_profile__isnull=True):
+                Vendor.objects.get_or_create(
+                    user=u,
+                    defaults={
+                        'company_name': u.organization_name or u.full_name or u.username or "Vendor Organization",
+                        'email': u.email,
+                        'registration_number': f"REG-{u.id.hex[:8].upper()}",
+                        'status': VendorStatus.VERIFIED,
+                    }
+                )
+        except Exception:
+            pass
+
         queryset = Vendor.objects.filter(is_deleted=False)
 
         # Filters

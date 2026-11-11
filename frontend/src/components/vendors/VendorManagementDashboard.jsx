@@ -9,7 +9,7 @@ import {
   ArrowUpDown, RefreshCw, Download, MessageSquare, Bell,
   Briefcase, MapPin, Globe, Phone, Mail, Calendar,
   BadgeCheck, X, Plus, AlertCircle, Loader2, Gavel,
-  ThumbsUp, ThumbsDown, Percent
+  ThumbsUp, ThumbsDown, Percent, FileCheck
 } from 'lucide-react';
 
 const STATUS_COLORS = {
@@ -107,7 +107,16 @@ function ProgressBar({ value, max = 5, color = '#3b82f6', label }) {
 
 export default function VendorManagementDashboard({ currentUser }) {
   const isVendor = currentUser?.role === 'VENDOR';
+  const isManagerOrAdmin = ['SUPER_ADMIN', 'ORG_ADMIN', 'TENDER_MANAGER'].includes(currentUser?.role);
   const [activeTab, setActiveTab] = useState(isVendor ? 'awarded_works' : 'overview');
+
+  useEffect(() => {
+    if (isVendor) {
+      setActiveTab('awarded_works');
+    } else {
+      setActiveTab('overview');
+    }
+  }, [isVendor]);
   const [dashboard, setDashboard] = useState(null);
   const [vendors, setVendors] = useState([]);
   const [awardedBids, setAwardedBids] = useState([]);
@@ -627,7 +636,7 @@ export default function VendorManagementDashboard({ currentUser }) {
                         <button onClick={() => openVendorDetail(v)} style={{ ...btnGhost, padding: '0.3rem 0.5rem', fontSize: '0.72rem' }} title="View Details">
                           <Eye size={13} />
                         </button>
-                        {v.status === 'PENDING_VERIFICATION' && (
+                        {isManagerOrAdmin && v.status === 'PENDING_VERIFICATION' && (
                           <>
                             <button onClick={() => { setSelectedVendor(v); setModalType('verify'); }} style={{ ...btnSuccess, padding: '0.3rem 0.5rem', fontSize: '0.72rem' }} title="Verify">
                               <CheckCircle2 size={13} />
@@ -637,12 +646,12 @@ export default function VendorManagementDashboard({ currentUser }) {
                             </button>
                           </>
                         )}
-                        {v.status === 'VERIFIED' && (
+                        {isManagerOrAdmin && v.status === 'VERIFIED' && (
                           <button onClick={() => { setSelectedVendor(v); setModalType('suspend'); }} style={{ ...btnWarn, padding: '0.3rem 0.5rem', fontSize: '0.72rem' }} title="Suspend">
                             <ShieldAlert size={13} />
                           </button>
                         )}
-                        {v.status === 'SUSPENDED' && (
+                        {isManagerOrAdmin && v.status === 'SUSPENDED' && (
                           <button onClick={() => handleReinstate(v.id)} style={{ ...btnSuccess, padding: '0.3rem 0.5rem', fontSize: '0.72rem' }} title="Reinstate">
                             <ShieldCheck size={13} />
                           </button>
@@ -803,23 +812,25 @@ export default function VendorManagementDashboard({ currentUser }) {
                 </div>
 
                 {/* Action Buttons */}
-                <div style={{ gridColumn: '1/-1', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {vendorDetail.status === 'PENDING_VERIFICATION' && (
-                    <>
-                      <button onClick={() => setModalType('verify')} style={btnSuccess}><CheckCircle2 size={14} /> Verify Vendor</button>
-                      <button onClick={() => setModalType('reject')} style={btnDanger}><XCircle size={14} /> Reject</button>
-                    </>
-                  )}
-                  {vendorDetail.status === 'VERIFIED' && (
-                    <button onClick={() => setModalType('suspend')} style={btnWarn}><ShieldAlert size={14} /> Suspend</button>
-                  )}
-                  {(vendorDetail.status === 'SUSPENDED' || vendorDetail.status === 'BLACKLISTED') && (
-                    <button onClick={() => handleReinstate(vendorDetail.id)} style={btnSuccess}><ShieldCheck size={14} /> Reinstate</button>
-                  )}
-                  {vendorDetail.status !== 'BLACKLISTED' && vendorDetail.status !== 'DEACTIVATED' && (
-                    <button onClick={() => setModalType('blacklist')} style={btnDanger}><Ban size={14} /> Blacklist</button>
-                  )}
-                </div>
+                {isManagerOrAdmin && (
+                  <div style={{ gridColumn: '1/-1', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {vendorDetail.status === 'PENDING_VERIFICATION' && (
+                      <>
+                        <button onClick={() => setModalType('verify')} style={btnSuccess}><CheckCircle2 size={14} /> Verify Vendor</button>
+                        <button onClick={() => setModalType('reject')} style={btnDanger}><XCircle size={14} /> Reject</button>
+                      </>
+                    )}
+                    {vendorDetail.status === 'VERIFIED' && (
+                      <button onClick={() => setModalType('suspend')} style={btnWarn}><ShieldAlert size={14} /> Suspend</button>
+                    )}
+                    {(vendorDetail.status === 'SUSPENDED' || vendorDetail.status === 'BLACKLISTED') && (
+                      <button onClick={() => handleReinstate(vendorDetail.id)} style={btnSuccess}><ShieldCheck size={14} /> Reinstate</button>
+                    )}
+                    {vendorDetail.status !== 'BLACKLISTED' && vendorDetail.status !== 'DEACTIVATED' && (
+                      <button onClick={() => setModalType('blacklist')} style={btnDanger}><Ban size={14} /> Blacklist</button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
