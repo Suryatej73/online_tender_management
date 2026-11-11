@@ -9,7 +9,7 @@ try:
     from rest_framework.views import APIView
     from rest_framework.response import Response
     from rest_framework import status, permissions
-    from rest_framework.parsers import MultiPartParser, FormParser
+    from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 except ImportError:
     from django.views import View
     from django.http import JsonResponse
@@ -43,6 +43,7 @@ except ImportError:
         HTTP_503_SERVICE_UNAVAILABLE = 503
     class MultiPartParser: pass
     class FormParser: pass
+    class JSONParser: pass
 
 from accounts.views import get_request_data
 from accounts.models import UserRole, User
@@ -137,17 +138,21 @@ class BidListCreateView(APIView):
         user = getattr(request, 'user', None)
         is_authenticated = user and getattr(user, 'is_authenticated', False)
 
+        # Filters
+        search = request.GET.get('search', '').strip()
+        bid_status = request.GET.get('status', '').strip()
+        scope = request.GET.get('scope', '').strip()
+        tender_id = request.GET.get('tender', '').strip()
+
         if is_authenticated and user.role == UserRole.VENDOR:
-            bids = Bid.objects.filter(Q(vendor__user=user) | Q(created_by=user), is_deleted=False)
+            if bid_status.upper() == 'AWARDED' or scope.lower() == 'awarded':
+                bids = Bid.objects.filter(status='AWARDED', is_deleted=False)
+            else:
+                bids = Bid.objects.filter(Q(vendor__user=user) | Q(created_by=user), is_deleted=False)
         elif is_authenticated and user.role in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.TENDER_MANAGER, UserRole.EVALUATOR, UserRole.AUDITOR]:
             bids = Bid.objects.filter(is_deleted=False)
         else:
             bids = Bid.objects.none()
-
-        # Filters
-        search = request.GET.get('search', '').strip()
-        bid_status = request.GET.get('status', '').strip()
-        tender_id = request.GET.get('tender', '').strip()
 
         if search:
             bids = bids.filter(
@@ -617,7 +622,7 @@ class FinancialBidView(APIView):
 class BidDocumentListCreateView(APIView):
     """List and upload bid documents."""
     permission_classes = [permissions.AllowAny]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request, pk):
         try:

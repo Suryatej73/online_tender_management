@@ -101,15 +101,15 @@ function TenderXApp() {
   useEffect(() => {
     if (!user) return;
     const role = user.role;
-    if (role === 'VENDOR' && ['vendors', 'evaluations', 'admin_governance', 'users', 'rbac'].includes(activeTab)) {
+    if (role === 'VENDOR' && ['documents', 'evaluations', 'admin_governance', 'users', 'rbac'].includes(activeTab)) {
       setActiveTab('dashboard');
-    } else if (role === 'EVALUATOR' && ['vendors', 'bids', 'admin_governance', 'users', 'rbac'].includes(activeTab)) {
+    } else if (role === 'EVALUATOR' && ['documents', 'vendors', 'bids', 'admin_governance', 'users', 'rbac'].includes(activeTab)) {
       setActiveTab('evaluations');
-    } else if (role === 'TENDER_MANAGER' && ['admin_governance', 'users', 'rbac'].includes(activeTab)) {
+    } else if (role === 'TENDER_MANAGER' && ['documents', 'admin_governance', 'users', 'rbac'].includes(activeTab)) {
       setActiveTab('dashboard');
-    } else if (role === 'AUDITOR' && ['vendors', 'users', 'rbac'].includes(activeTab)) {
+    } else if (role === 'AUDITOR' && ['documents', 'vendors', 'users', 'rbac'].includes(activeTab)) {
       setActiveTab('dashboard');
-    } else if (role === 'ORG_ADMIN' && ['admin_governance', 'rbac'].includes(activeTab)) {
+    } else if (role === 'ORG_ADMIN' && ['documents', 'admin_governance', 'rbac'].includes(activeTab)) {
       setActiveTab('dashboard');
     }
   }, [user?.role, activeTab]);
@@ -229,15 +229,15 @@ function TenderXApp() {
             </div>
           )}
 
-          {/* TAB 4: Vendor Management */}
+          {/* TAB 4: Vendor Management & Awarded Works */}
           {activeTab === 'vendors' && (
             <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
-              <VendorManagementDashboard />
+              <VendorManagementDashboard currentUser={user} />
             </div>
           )}
 
-          {/* TAB 5: Documents (Module 8 - renamed strictly to Documents) */}
-          {activeTab === 'documents' && (
+          {/* TAB 5: Documents (Only accessible for Super Admin) */}
+          {activeTab === 'documents' && user?.role === 'SUPER_ADMIN' && (
             <div className="bg-[#0b0e14]/90 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
               <DocumentManagementDashboard currentUser={user} />
             </div>

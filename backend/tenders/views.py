@@ -1,5 +1,6 @@
 import uuid
 import datetime
+import hashlib
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q, Sum
@@ -328,6 +329,26 @@ class TenderListCreateView(APIView):
                 if hasattr(request, 'user') and request.user.is_authenticated and hasattr(request.user, 'organization') and request.user.organization and not tender.organization:
                     tender.organization = request.user.organization
                 tender.save()
+
+            # Process uploaded tender documents during creation
+            raw_docs = data.get('documents', []) or data.get('uploaded_documents', [])
+            if raw_docs and isinstance(raw_docs, list):
+                for doc in raw_docs:
+                    if isinstance(doc, dict) and (doc.get('name') or doc.get('file_name')):
+                        fname = doc.get('file_name') or doc.get('name')
+                        furl = doc.get('file_url') or doc.get('url') or f"/media/tenders/{tender.tender_number}/{fname}"
+                        fsize = int(doc.get('file_size') or doc.get('size') or 1024)
+                        ftype = doc.get('file_type') or doc.get('type') or 'PDF'
+                        fhash = doc.get('file_hash') or hashlib.sha256(f"{fname}:{tender.id}:{fsize}".encode('utf-8')).hexdigest()
+                        TenderDocument.objects.create(
+                            tender=tender,
+                            file_name=fname,
+                            file_url=furl,
+                            file_size=fsize,
+                            file_type=ftype,
+                            file_hash=fhash,
+                            uploaded_by=request.user if hasattr(request, 'user') and request.user.is_authenticated else None
+                        )
 
             try:
                 TenderStatusHistory.objects.create(

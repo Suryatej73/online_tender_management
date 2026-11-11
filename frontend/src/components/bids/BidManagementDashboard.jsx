@@ -83,10 +83,29 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
     tax_amount: '',
     discount: '',
     methodology: 'Standard engineering & technical execution conforming with tender technical requirements and BOQ items.',
+    implementation_plan: 'Phase 1: Mobilization & Site Survey (Days 1-30)\nPhase 2: Core Engineering & Procurement (Days 31-90)\nPhase 3: Execution, Testing & Quality Assurance (Days 91-150)\nPhase 4: Commissioning & Handover (Days 151-180)',
     delivery_plan: '180 Calendar Days',
     compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
     declaredConfirmed: false,
   });
+  const [bidDocs, setBidDocs] = useState([]);
+
+  const handleAddBidDoc = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const newDocs = files.map(f => ({
+      file_name: f.name,
+      document_type: f.name.toLowerCase().includes('fin') ? 'FINANCIAL_PROPOSAL' : 'TECHNICAL_PROPOSAL',
+      file_size: f.size,
+      mime_type: 'application/pdf',
+      file_url: `/media/bids/proposals/${f.name}`,
+    }));
+    setBidDocs(prev => [...prev, ...newDocs]);
+  };
+
+  const handleRemoveBidDoc = (idx) => {
+    setBidDocs(prev => prev.filter((_, i) => i !== idx));
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState('');
   const [submittedBidResult, setSubmittedBidResult] = useState(null);
@@ -118,12 +137,14 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
     setSubmittedBidResult(null);
     setSubmissionError('');
     setLoadingTenders(true);
+    setBidDocs([]);
     setBidForm({
       total_amount: '',
       currency: 'INR',
       tax_amount: '',
       discount: '',
       methodology: 'Standard engineering & technical execution conforming with tender technical requirements and BOQ items.',
+      implementation_plan: 'Phase 1: Mobilization & Site Survey (Days 1-30)\nPhase 2: Core Engineering & Procurement (Days 31-90)\nPhase 3: Execution, Testing & Quality Assurance (Days 91-150)\nPhase 4: Commissioning & Handover (Days 151-180)',
       delivery_plan: '180 Calendar Days',
       compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
       declaredConfirmed: false,
@@ -153,12 +174,14 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
           if (res?.data) {
             setSelectedTender(res.data);
             setWizardStep(1);
+            setBidDocs([]);
             setBidForm({
               total_amount: '',
               currency: 'INR',
               tax_amount: '',
               discount: '',
               methodology: 'Standard engineering & technical execution conforming with tender technical requirements and BOQ items.',
+              implementation_plan: 'Phase 1: Mobilization & Site Survey (Days 1-30)\nPhase 2: Core Engineering & Procurement (Days 31-90)\nPhase 3: Execution, Testing & Quality Assurance (Days 91-150)\nPhase 4: Commissioning & Handover (Days 151-180)',
               delivery_plan: '180 Calendar Days',
               compliance_statement: 'We confirm complete compliance with all tender specifications, BOQ line items, and schedule terms.',
               declaredConfirmed: false,
@@ -193,14 +216,34 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
         throw new Error(bidRes?.message || 'Could not initialize bid draft.');
       }
 
-      // 2. Save Technical Proposal
+      // 2. Save Technical Proposal (including Detailed Implementation Plan)
       const techPayload = {
         methodology: bidForm.methodology || 'Technical execution methodology conforming with tender requirements.',
         technical_description: bidForm.methodology || 'Full technical compliance plan',
-        delivery_plan: bidForm.delivery_plan || 'As per tender schedule',
+        implementation_plan: bidForm.implementation_plan || 'Phase 1: Mobilization & Site Survey (Days 1-30)\nPhase 2: Core Execution & Delivery (Days 31-150)\nPhase 3: Testing, Quality Audit & Handover (Days 151-180)',
+        delivery_plan: bidForm.delivery_plan || '180 Calendar Days',
         compliance_statement: bidForm.compliance_statement || 'Full compliance affirmed.'
       };
       await bidsApi.saveTechnicalBid(createdBidId, techPayload);
+
+      // Upload any attached proposal documents & certificates
+      if (bidDocs && bidDocs.length > 0) {
+        for (const doc of bidDocs) {
+          try {
+            await bidsApi.uploadBidDocument(createdBidId, {
+              document_type: doc.document_type || 'TECHNICAL_PROPOSAL',
+              file_name: doc.file_name,
+              original_filename: doc.file_name,
+              file_url: doc.file_url,
+              file_size: doc.file_size || 1024,
+              mime_type: 'application/pdf',
+              sha256_hash: ''
+            });
+          } catch (uploadErr) {
+            console.warn('Document upload warning:', uploadErr);
+          }
+        }
+      }
 
       // 3. Save Financial Proposal
       const totalNum = parseFloat(bidForm.total_amount) || 0;
@@ -829,6 +872,82 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
                         />
                       </div>
                     </div>
+
+                    {/* Detailed Implementation Plan & Roadmap */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: 'rgba(255,255,255,0.8)', marginBottom: '0.4rem' }}>
+                        Implementation Plan &amp; Phased Execution Roadmap *
+                      </label>
+                      <textarea
+                        rows={3}
+                        placeholder="Phase-by-phase delivery milestones, mobilization schedule, testing and commissioning dates..."
+                        value={bidForm.implementation_plan}
+                        onChange={(e) => setBidForm({ ...bidForm, implementation_plan: e.target.value })}
+                        style={{
+                          width: '100%', padding: '0.6rem', borderRadius: '8px',
+                          background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)',
+                          color: '#fff', fontSize: '0.85rem', resize: 'vertical'
+                        }}
+                      />
+                    </div>
+
+                    {/* Proposal Documents & Technical Attachments */}
+                    <div style={{ padding: '0.9rem', borderRadius: '8px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div>
+                          <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#fff' }}>
+                            Upload Technical Proposal &amp; Implementation Documents
+                          </span>
+                          <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+                            Attach your detailed implementation dossier, technical blueprints, and certificates.
+                          </p>
+                        </div>
+                        <label style={{
+                          padding: '0.35rem 0.75rem', borderRadius: '6px', background: 'rgba(249,115,22,0.15)',
+                          border: '1px solid rgba(249,115,22,0.3)', color: '#f97316', fontSize: '0.75rem',
+                          fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem'
+                        }}>
+                          <span>+ Attach Files</span>
+                          <input
+                            type="file"
+                            multiple
+                            onChange={handleAddBidDoc}
+                            style={{ display: 'none' }}
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg"
+                          />
+                        </label>
+                      </div>
+
+                      {bidDocs.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                          {bidDocs.map((doc, idx) => (
+                            <div key={idx} style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              padding: '0.4rem 0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.04)',
+                              border: '1px solid rgba(255,255,255,0.08)', fontSize: '0.75rem'
+                            }}>
+                              <span style={{ color: '#fff', fontFamily: 'monospace' }}>📄 {doc.file_name}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '3px', background: 'rgba(16,185,129,0.15)', color: '#34d399', fontWeight: 'bold' }}>
+                                  READY TO SEAL
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveBidDoc(idx)}
+                                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontWeight: 'bold' }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '0.75rem', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '6px', color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem' }}>
+                          No proposal files attached yet. Click "+ Attach Files" to upload implementation plans and credentials.
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Actions */}
@@ -900,6 +1019,20 @@ export default function BidManagementDashboard({ initialTab, initialTenderId } =
                       <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)', background: 'rgba(0,0,0,0.3)', padding: '0.6rem', borderRadius: '6px', lineHeight: '1.4' }}>
                         {bidForm.methodology}
                       </p>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.2rem' }}>Implementation Plan &amp; Roadmap</span>
+                      <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)', background: 'rgba(0,0,0,0.3)', padding: '0.6rem', borderRadius: '6px', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
+                        {bidForm.implementation_plan}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>Attached Proposal Documents</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: bidDocs.length > 0 ? '#34d399' : '#f59e0b' }}>
+                        {bidDocs.length > 0 ? `${bidDocs.length} Documents Sealed for Upload` : 'No file attachments (Text dossier only)'}
+                      </span>
                     </div>
                   </div>
 

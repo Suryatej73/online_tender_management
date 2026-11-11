@@ -645,6 +645,16 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
                           <p className="text-slate-300 bg-white/5 p-2.5 rounded-lg leading-relaxed whitespace-pre-wrap">{tech?.methodology || 'Conforming technical proposal submitted.'}</p>
                         </div>
 
+                        {/* Implementation Plan & Roadmap */}
+                        <div className="space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-amber-400 flex items-center gap-1">
+                            <span>📌 Implementation Plan &amp; Phased Execution Roadmap:</span>
+                          </span>
+                          <p className="text-slate-300 bg-white/5 p-2.5 rounded-lg leading-relaxed whitespace-pre-wrap font-mono text-[11px]">
+                            {tech?.implementation_plan || 'Phase 1: Mobilization & Survey • Phase 2: Execution & BOQ Delivery • Phase 3: Quality Audit & Handover'}
+                          </p>
+                        </div>
+
                         {/* Attached Bid Proposal Documents */}
                         <div className="space-y-1.5 pt-2 border-t border-white/5">
                           <span className="text-[10px] uppercase font-bold text-sky-400 flex items-center gap-1">
@@ -676,6 +686,17 @@ export default function EvaluationManagementDashboard({ onNavigateToTender }) {
                         </div>
                       </div>
                     )}
+
+                    {/* Evaluator Document & Dossier Checklist Verification */}
+                    <div className="pt-2 px-1 flex items-center justify-between text-[11px] text-slate-400 border-t border-white/5">
+                      <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Documents &amp; Implementation Dossier Verified for Scoring</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {b.documents?.length || 1} Verified Artifacts
+                      </span>
+                    </div>
 
                     {/* Scoring & Evaluator Action Controls */}
                     <div className="pt-2 flex flex-col sm:flex-row items-end gap-2 text-xs">

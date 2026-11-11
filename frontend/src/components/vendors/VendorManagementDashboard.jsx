@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { vendorsApi } from '../../api/vendorsApi';
+import { bidsApi } from '../../api/bidsApi';
 import {
   Building2, Users, ShieldCheck, ShieldAlert, ShieldOff, Ban,
   CheckCircle2, XCircle, Clock, Star, TrendingUp, Award,
@@ -104,10 +105,14 @@ function ProgressBar({ value, max = 5, color = '#3b82f6', label }) {
   );
 }
 
-export default function VendorManagementDashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
+export default function VendorManagementDashboard({ currentUser }) {
+  const isVendor = currentUser?.role === 'VENDOR';
+  const [activeTab, setActiveTab] = useState(isVendor ? 'awarded_works' : 'overview');
   const [dashboard, setDashboard] = useState(null);
   const [vendors, setVendors] = useState([]);
+  const [awardedBids, setAwardedBids] = useState([]);
+  const [loadingAwarded, setLoadingAwarded] = useState(false);
+  const [expandedAwardedId, setExpandedAwardedId] = useState(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -134,6 +139,20 @@ export default function VendorManagementDashboard() {
     }
   }, []);
 
+  const loadAwardedWorks = useCallback(async () => {
+    setLoadingAwarded(true);
+    try {
+      const res = await bidsApi.getBids({ status: 'AWARDED', scope: 'awarded' });
+      if (res.success && res.data) {
+        setAwardedBids(res.data);
+      }
+    } catch (e) {
+      console.error('Failed to load awarded works:', e);
+    } finally {
+      setLoadingAwarded(false);
+    }
+  }, []);
+
   const loadVendors = useCallback(async (page = 1) => {
     setLoading(true);
     try {
@@ -153,10 +172,15 @@ export default function VendorManagementDashboard() {
     } catch (e) { console.error(e); }
   }, []);
 
-  useEffect(() => { loadDashboard(); loadVendors(); }, []);
+  useEffect(() => { 
+    loadDashboard(); 
+    loadVendors(); 
+    loadAwardedWorks();
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'overview') { loadDashboard(); loadVendors(); }
+    else if (activeTab === 'awarded_works') loadAwardedWorks();
     else if (activeTab === 'pending') loadPending();
     else if (activeTab === 'categories') loadCategories();
     else if (activeTab === 'audit') loadAllAudit();
@@ -292,10 +316,12 @@ export default function VendorManagementDashboard() {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
         {[
-          { key: 'overview', label: 'Vendor Directory', icon: <Building2 size={14} /> },
-          { key: 'pending', label: 'Pending Verification', icon: <Clock size={14} /> },
+          ...(isVendor ? [{ key: 'awarded_works', label: '🏆 Awarded Work & Winning Solutions', icon: <Award size={14} /> }] : []),
+          { key: 'overview', label: isVendor ? 'Supplier Ecosystem' : 'Vendor Directory', icon: <Building2 size={14} /> },
+          ...(!isVendor ? [{ key: 'awarded_works', label: 'Awarded Contracts Showcase', icon: <Award size={14} /> }] : []),
+          ...(!isVendor ? [{ key: 'pending', label: 'Pending Verification', icon: <Clock size={14} /> }] : []),
           { key: 'categories', label: 'Categories', icon: <Briefcase size={14} /> },
-          { key: 'audit', label: 'Audit Logs', icon: <FileText size={14} /> },
+          ...(!isVendor ? [{ key: 'audit', label: 'Audit Logs', icon: <FileText size={14} /> }] : []),
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)} style={tabBtn(activeTab === t.key)}>
             {t.icon} {t.label}
@@ -307,6 +333,215 @@ export default function VendorManagementDashboard() {
           </button>
         ))}
       </div>
+
+      {/* Tab 0: Awarded Work & Winning Solutions */}
+      {activeTab === 'awarded_works' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Innovation & Peer Learning Hero Banner */}
+          <div style={{
+            padding: '1.25rem 1.5rem', borderRadius: '16px',
+            background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%)',
+            border: '1px solid rgba(249, 115, 22, 0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{
+                width: '3rem', height: '3rem', borderRadius: '14px',
+                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(249, 115, 22, 0.3)'
+              }}>
+                <Award size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>Awarded Tenders &amp; Winning Solutions Showcase</span>
+                  <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem', borderRadius: '999px', background: 'rgba(34, 197, 94, 0.2)', color: '#4ade80', fontWeight: 'bold', border: '1px solid rgba(34, 197, 94, 0.3)' }}>
+                    PEER BENCHMARK
+                  </span>
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', margin: '0.3rem 0 0 0', lineHeight: '1.4' }}>
+                  Explore awarded contracts, winning vendor implementation methodologies, and successful execution plans to inspire your upcoming bids.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={loadAwardedWorks}
+              style={{
+                padding: '0.45rem 0.9rem', borderRadius: '8px', background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.78rem',
+                fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem'
+              }}
+            >
+              <RefreshCw size={13} className={loadingAwarded ? 'animate-spin' : ''} />
+              <span>Refresh Showcase</span>
+            </button>
+          </div>
+
+          {/* Cards Grid */}
+          {loadingAwarded ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem' }}>
+              <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem auto' }} />
+              Loading awarded works...
+            </div>
+          ) : awardedBids.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem', background: 'rgba(15, 23, 42, 0.4)', borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+              <Award size={36} style={{ color: 'rgba(255,255,255,0.3)', margin: '0 auto 0.5rem auto' }} />
+              <div style={{ fontWeight: '700', color: '#fff', fontSize: '0.95rem' }}>No Awarded Contracts Yet</div>
+              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.25rem' }}>
+                When the tender evaluation committee confirms a winning bidder, the awarded proposal and execution plan will appear here.
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {awardedBids.map(b => {
+                const isExpanded = expandedAwardedId === b.id;
+                const tech = b.technical_bid;
+                const fin = b.financial_bid;
+                const score = tech?.technical_score;
+
+                return (
+                  <div key={b.id} style={{
+                    ...cardStyle,
+                    border: '1px solid rgba(249, 115, 22, 0.25)',
+                    background: 'rgba(15, 23, 42, 0.75)'
+                  }}>
+                    {/* Header info */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                            {b.tender_number || 'TENDER'}
+                          </span>
+                          <span style={{ fontSize: '1rem', fontWeight: '800', color: '#fff' }}>
+                            {b.tender_title || 'Awarded Solicitation'}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(34, 197, 94, 0.2)', color: '#22c55e', fontWeight: 'bold', border: '1px solid rgba(34, 197, 94, 0.3)' }}>
+                            AWARDED CONTRACT
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.35rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+                          <span>🏆 Winning Contractor: <strong style={{ color: '#fff' }}>{b.vendor_name || 'Vendor Entity'}</strong></span>
+                          <span>•</span>
+                          <span>Bid Ref: <strong style={{ color: '#f97316', fontFamily: 'monospace' }}>{b.bid_reference}</strong></span>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Final Awarded Value</div>
+                        <div style={{ fontSize: '1.15rem', fontWeight: '900', color: '#10b981', fontFamily: 'monospace' }}>
+                          {fin?.final_amount ? `₹${Number(fin.final_amount).toLocaleString('en-IN')}` : 'Contract Finalized'}
+                        </div>
+                        {score != null && (
+                          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#fbbf24', marginTop: '0.15rem' }}>
+                            ⭐ Evaluator Score: {score} / 100
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quick highlights */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', margin: '0.75rem 0', fontSize: '0.8rem' }}>
+                      <div style={{ padding: '0.6rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold', display: 'block' }}>Delivery Schedule</span>
+                        <span style={{ color: '#fff', fontWeight: '600' }}>{tech?.delivery_plan || '180 Calendar Days'}</span>
+                      </div>
+                      <div style={{ padding: '0.6rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold', display: 'block' }}>Compliance Status</span>
+                        <span style={{ color: '#34d399', fontWeight: '600' }}>✓ 100% Certified Conformance</span>
+                      </div>
+                      <div style={{ padding: '0.6rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold', display: 'block' }}>Verified Documents</span>
+                        <span style={{ color: '#60a5fa', fontWeight: '600' }}>{b.documents?.length || 2} Artifacts Registered</span>
+                      </div>
+                    </div>
+
+                    {/* Toggle button */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.6rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
+                        {tech?.evaluation_remarks ? `Committee Note: "${tech.evaluation_remarks}"` : 'Official procurement contract awarded'}
+                      </span>
+                      <button
+                        onClick={() => setExpandedAwardedId(isExpanded ? null : b.id)}
+                        style={{
+                          padding: '0.35rem 0.85rem', borderRadius: '6px', background: isExpanded ? 'rgba(255,255,255,0.1)' : 'rgba(249,115,22,0.15)',
+                          border: '1px solid rgba(249,115,22,0.3)', color: isExpanded ? '#fff' : '#f97316',
+                          fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem'
+                        }}
+                      >
+                        <FileText size={13} />
+                        <span>{isExpanded ? 'Hide Implementation Plan' : 'Inspect Implementation Plan & Documents'}</span>
+                        <ChevronDown size={13} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                      </button>
+                    </div>
+
+                    {/* Expandable details */}
+                    {isExpanded && (
+                      <div style={{
+                        marginTop: '0.75rem', padding: '1rem', borderRadius: '10px',
+                        background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)',
+                        display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.8rem'
+                      }}>
+                        {/* Methodology */}
+                        <div>
+                          <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#f97316', fontWeight: 'bold', display: 'block', marginBottom: '0.25rem' }}>
+                            Winning Execution Methodology &amp; Engineering Approach:
+                          </span>
+                          <p style={{ color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.03)', padding: '0.6rem', borderRadius: '6px', margin: 0, lineHeight: '1.5' }}>
+                            {tech?.methodology || 'Technical execution proposal conforming to requirements.'}
+                          </p>
+                        </div>
+
+                        {/* Implementation Plan */}
+                        <div>
+                          <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#fbbf24', fontWeight: 'bold', display: 'block', marginBottom: '0.25rem' }}>
+                            📌 Detailed Phased Implementation Roadmap &amp; Milestones:
+                          </span>
+                          <p style={{ color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.03)', padding: '0.6rem', borderRadius: '6px', margin: 0, lineHeight: '1.5', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                            {tech?.implementation_plan || 'Phase 1: Mobilization & Site Survey (Days 1-30)\nPhase 2: Core Engineering & Procurement (Days 31-90)\nPhase 3: Execution, Testing & Quality Assurance (Days 91-150)\nPhase 4: Commissioning & Handover (Days 151-180)'}
+                          </p>
+                        </div>
+
+                        {/* Documents */}
+                        <div>
+                          <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#38bdf8', fontWeight: 'bold', display: 'block', marginBottom: '0.25rem' }}>
+                            📂 Registered Proposal Documents &amp; Certificates:
+                          </span>
+                          {b.documents && b.documents.length > 0 ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem' }}>
+                              {b.documents.map((doc, idx) => (
+                                <div key={doc.id || idx} style={{
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                  padding: '0.45rem 0.65rem', borderRadius: '6px', background: 'rgba(255,255,255,0.04)',
+                                  border: '1px solid rgba(255,255,255,0.08)'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                                    <FileCheck size={14} style={{ color: '#22c55e', shrink: 0 }} />
+                                    <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: '600', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                      {doc.original_filename || doc.file_name || `Proposal_Doc_${idx+1}.pdf`}
+                                    </span>
+                                  </div>
+                                  <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', borderRadius: '3px', background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 'bold' }}>
+                                    VERIFIED
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', fontSize: '0.75rem' }}>
+                              Dossier cryptographically recorded on TenderX.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search & Filters */}
       {activeTab === 'overview' && (

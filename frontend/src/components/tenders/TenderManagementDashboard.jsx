@@ -3,7 +3,7 @@ import {
   FileText, Plus, Search, Filter, CheckCircle2, AlertCircle, Clock, 
   Gavel, Award, X, Save, History, FileCheck, Layers, ChevronRight, 
   Calendar, DollarSign, Building, RefreshCw, Eye, Edit, Trash2, 
-  FilePlus, Send, ArrowRight
+  FilePlus, Send, ArrowRight, Upload, Paperclip
 } from 'lucide-react';
 import { tendersApi } from '../../api/tendersApi';
 import { useAuth } from '../../context/AuthContext';
@@ -121,6 +121,26 @@ export default function TenderManagementDashboard({ initialSelectedTenderId, onN
     technical_requirements: '',
     financial_requirements: ''
   });
+  const [tenderDocs, setTenderDocs] = useState([]);
+
+  const handleAddTenderDoc = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const newDocs = files.map(f => ({
+      name: f.name,
+      file_name: f.name,
+      size: f.size,
+      file_size: f.size,
+      type: f.name.split('.').pop().toUpperCase() || 'PDF',
+      file_type: f.name.split('.').pop().toUpperCase() || 'PDF',
+      url: `/media/tenders/solicitations/${f.name}`
+    }));
+    setTenderDocs(prev => [...prev, ...newDocs]);
+  };
+
+  const handleRemoveTenderDoc = (idx) => {
+    setTenderDocs(prev => prev.filter((_, i) => i !== idx));
+  };
 
   const displayCategories = useMemo(() => {
     if (categories && categories.length > 0) return categories;
@@ -186,13 +206,15 @@ export default function TenderManagementDashboard({ initialSelectedTenderId, onN
         category: formData.category ? formData.category : null,
         budget: formData.budget ? parseFloat(formData.budget) : 0,
         submission_deadline: formData.submission_deadline ? new Date(formData.submission_deadline).toISOString() : null,
-        opening_date: formData.opening_date ? new Date(formData.opening_date).toISOString() : null
+        opening_date: formData.opening_date ? new Date(formData.opening_date).toISOString() : null,
+        documents: tenderDocs
       };
 
       const res = await tendersApi.createTender(payload);
       window.dispatchEvent(new Event('tenders:changed'));
-      setSuccessMsg('Draft tender created successfully!');
+      setSuccessMsg('Draft tender with attached procurement documents created successfully!');
       setCreateModalOpen(false);
+      setTenderDocs([]);
       setFormData({
         title: '', description: '', category: '', budget: '',
         submission_deadline: '', opening_date: '', eligibility_criteria: '',
@@ -567,6 +589,56 @@ export default function TenderManagementDashboard({ initialSelectedTenderId, onN
                   className="w-full px-3 py-2 bg-[#07090e] border border-white/10 rounded-xl text-white placeholder:text-slate-500 focus:border-orange-500 focus:outline-none"
                   required
                 />
+              </div>
+
+              {/* Mandatory Procurement Documents & Specifications */}
+              <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300 font-bold flex items-center gap-1.5 text-xs">
+                    <FileText className="w-3.5 h-3.5 text-orange-400" />
+                    <span>Upload Tender Documents (RFP, BOQ, Technical Specs)</span>
+                  </label>
+                  <label className="cursor-pointer px-2.5 py-1 bg-white/10 hover:bg-white/15 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition">
+                    <Upload className="w-3 h-3 text-orange-400" />
+                    <span>Attach Files</span>
+                    <input
+                      type="file"
+                      multiple
+                      onChange={handleAddTenderDoc}
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                    />
+                  </label>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Attach tender notice, request for proposals (RFP), bill of quantities (BOQ), and eligibility criteria.
+                </p>
+
+                {tenderDocs.length > 0 ? (
+                  <div className="space-y-1.5 mt-2">
+                    {tenderDocs.map((doc, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-[#07090e] border border-white/10 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Paperclip className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                          <span className="font-mono text-white truncate text-[11px]">{doc.name}</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 font-mono uppercase">{doc.type}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTenderDoc(idx)}
+                          className="text-slate-400 hover:text-red-400 transition text-xs font-bold px-1.5"
+                          title="Remove file"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 border border-dashed border-white/10 rounded-lg text-center text-slate-500 text-[11px]">
+                    No files attached yet. Click "Attach Files" above to upload RFP/BOQ documents.
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-white/10">

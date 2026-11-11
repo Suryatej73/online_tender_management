@@ -26,10 +26,14 @@ export default function PuritySidebar({ activeTab, onTabChange, currentUser, onE
       label: isVendor ? 'My Bids & Proposals' : isAuditor ? 'Bid Integrity Records' : 'Received Bids',
       icon: Gavel
     }] : []),
-    // Vendor 360: Supplier Master Directory & Due Diligence (Tender Managers, Org Admins, Super Admins)
-    ...(isTenderManager ? [{ id: 'vendors', label: 'Vendor 360', icon: Building2 }] : []),
-    // Document Vault: Contextual document repository (All roles)
-    { id: 'documents', label: 'Document Vault', icon: FileCheck },
+    // Vendor 360: Supplier Master Directory & Awarded Work Showcase
+    ...((isTenderManager || isVendor) ? [{
+      id: 'vendors',
+      label: isVendor ? 'Vendor 360 & Awarded Work' : 'Vendor 360',
+      icon: Building2
+    }] : []),
+    // Document Vault: Dedicated Vault for Administrator (Super Admin). Other roles have contextual document upload/review in tenders, bidding & evaluations.
+    ...(isSuperAdmin ? [{ id: 'documents', label: 'Document Vault', icon: FileCheck }] : []),
     // Evaluations & Awards: Committee, Tender Managers, Admins, and Auditors. Strictly hidden for Vendors!
     ...(!isVendor ? [{
       id: 'evaluations',
