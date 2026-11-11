@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import authBannerImg from '../assets/auth-banner.png';
 import {
@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Building2,
   UserCheck,
+  Sparkles,
 } from 'lucide-react';
 
 const GoogleIcon = () => (
@@ -311,22 +312,17 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
   };
 
   return (
-    <AnimatePresence>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-[#0c0915]/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-[#0c0915]/80 backdrop-blur-md overflow-y-auto"
-        onClick={onClose}
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        className="relative w-full max-w-[940px] bg-[#1e1b29] border border-white/10 rounded-[28px] shadow-[0_25px_70px_-15px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col md:flex-row my-auto"
+        onClick={(e) => e.stopPropagation()}
       >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 16 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 12 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-          className="relative w-full max-w-[940px] bg-[#1e1b29] border border-white/10 rounded-[28px] shadow-[0_25px_70px_-15px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col md:flex-row my-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
           {/* Close Button Top Right */}
           <button
             type="button"
@@ -751,7 +747,6 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
             </div>
           </div>
         </motion.div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
   );
 }
