@@ -323,11 +323,15 @@ class TenderSerializer(serializers.ModelSerializer):
         ]
 
     def get_amendment_count(self, obj):
+        if hasattr(obj, 'amendment_count') and not callable(getattr(obj, 'amendment_count')):
+            return obj.amendment_count
         if hasattr(obj, 'amendments'):
             return obj.amendments.filter(status='PUBLISHED').count()
         return 0
 
     def get_bids_count(self, obj):
+        if hasattr(obj, 'bids_count') and not callable(getattr(obj, 'bids_count')):
+            return obj.bids_count
         try:
             return obj.bids.filter(is_deleted=False).count()
         except Exception:
@@ -335,14 +339,17 @@ class TenderSerializer(serializers.ModelSerializer):
 
     def get_top_evaluation_score(self, obj):
         try:
+            # If tender has no bids, skip expensive remote queries
+            if self.get_bids_count(obj) == 0:
+                return None
             from bids.models import TechnicalBid
             top_tb = TechnicalBid.objects.filter(
                 bid__tender=obj,
                 bid__is_deleted=False,
                 technical_score__isnull=False
-            ).order_by('-technical_score').first()
+            ).select_related('bid__vendor').order_by('-technical_score').first()
             if top_tb:
-                v_name = top_tb.bid.vendor.company_name if (top_tb.bid.vendor and top_tb.bid.vendor.company_name) else (getattr(top_tb.bid, 'vendor_name', None) or 'Vendor Entity')
+                v_name = top_tb.bid.vendor.company_name if (top_tb.bid and top_tb.bid.vendor and top_tb.bid.vendor.company_name) else (getattr(top_tb.bid, 'vendor_name', None) or 'Vendor Entity')
                 return {
                     'score': float(top_tb.technical_score),
                     'vendor_name': v_name,
@@ -356,7 +363,10 @@ class TenderSerializer(serializers.ModelSerializer):
 
     def get_awarded_vendor_name(self, obj):
         try:
-            awarded_bid = obj.bids.filter(status='AWARDED', is_deleted=False).first()
+            # If tender has no bids or status is not AWARDED/CLOSED, skip
+            if getattr(obj, 'status', None) not in ('AWARDED', 'CLOSED'):
+                return None
+            awarded_bid = obj.bids.filter(status='AWARDED', is_deleted=False).select_related('vendor').first()
             if awarded_bid and awarded_bid.vendor:
                 return awarded_bid.vendor.company_name
         except Exception:

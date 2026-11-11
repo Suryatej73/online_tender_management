@@ -3,7 +3,7 @@ import datetime
 import hashlib
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Count
 from accounts.views import get_request_data
 from accounts.models import UserRole
 
@@ -185,7 +185,16 @@ class TenderListCreateView(APIView):
         start = (page - 1) * limit
         end = start + limit
 
-        serializer = TenderSerializer(queryset[start:end], many=True)
+        paged_queryset = (
+            queryset
+            .annotate(
+                amendment_count=Count('amendments', filter=Q(amendments__status='PUBLISHED'), distinct=True),
+                bids_count=Count('bids', filter=Q(bids__is_deleted=False), distinct=True),
+            )
+            .select_related('category', 'organization', 'created_by')
+            .prefetch_related('documents')[start:end]
+        )
+        serializer = TenderSerializer(paged_queryset, many=True)
         return Response({
             "success": True,
             "data": serializer.data,

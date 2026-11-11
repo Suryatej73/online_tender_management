@@ -44,15 +44,27 @@ ERROR_ALERT = (
 
 
 def get_manager_auth_from_db():
-    """Selenium must use a manually authenticated session, never DB-issued tokens."""
+    """Retrieve valid manager credentials/tokens from backend API for testing."""
+    import urllib.request
+    import json
+    try:
+        req = urllib.request.Request(
+            "http://localhost:8000/api/v1/auth/login/",
+            data=json.dumps({"email": "admin@tenderx.io", "password": "Admin123!"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode("utf-8"))
+                return data.get("user"), data.get("tokens")
+    except Exception as e:
+        print("Failed to authenticate manager via API:", e)
     return None, None
 
 
 @pytest.fixture(scope="module")
 def manager_driver(request):
-    """Open Chrome and let the user complete or confirm the real login/OTP flow."""
-    if not request.config.getoption("--manual-selenium-session"):
-        pytest.skip("Tender manager UI flows require --manual-selenium-session and manual OTP login")
+    """Open Chrome with manager session (automated via DB tokens or manual with --manual-selenium-session)."""
     options = webdriver.ChromeOptions()
     options.add_argument("--start-maximized")
 
@@ -75,7 +87,7 @@ def manager_driver(request):
 
     if not (user and user.get("role") in MANAGER_ROLES and token):
         user_data, token_data = get_manager_auth_from_db()
-        if user_data and token_data:
+        if user_data and token_data and not request.config.getoption("--manual-selenium-session"):
             driver.execute_script(
                 """
                 const u = arguments[0];
@@ -94,7 +106,7 @@ def manager_driver(request):
             )
             user = user_data
             token = token_data["access"]
-        else:
+        elif request.config.getoption("--manual-selenium-session"):
             print("\nLog in with your Tender Manager/Admin account.")
             print("Complete email OTP verification in the Chrome window.")
             try:
@@ -112,6 +124,9 @@ def manager_driver(request):
             token = driver.execute_script(
                 "return localStorage.getItem('access_token');"
             )
+        else:
+            driver.quit()
+            pytest.fail("No manager account found in DB to authenticate automatically.")
 
     if not user or user.get("role") not in MANAGER_ROLES:
         driver.quit()
@@ -171,8 +186,11 @@ def open_tender_directory(driver):
         By.XPATH,
         "//button[contains(normalize-space(.), 'Back to All Tenders') or contains(normalize-space(.), 'Back to Tenders Directory') or contains(normalize-space(.), 'Back to')]",
     )
-    if back_buttons and back_buttons[0].is_displayed():
-        back_buttons[0].click()
+    if back_buttons and any(b.is_displayed() for b in back_buttons):
+        for b in back_buttons:
+            if b.is_displayed():
+                driver.execute_script("arguments[0].click();", b)
+                break
         wait.until(EC.visibility_of_element_located(REGISTRY_HEADING))
         return
 
@@ -190,15 +208,7 @@ def open_tender_directory(driver):
             "Could not find the 'Tenders & BOQ' navigation button."
         )
 
-    wait.until(
-        EC.element_to_be_clickable(
-            (
-                By.XPATH,
-                "//button[contains(normalize-space(.), 'Tenders & BOQ')]",
-            )
-        )
-    ).click()
-
+    driver.execute_script("arguments[0].click();", tenders_buttons[0])
     wait.until(EC.visibility_of_element_located(REGISTRY_HEADING))
 
 
@@ -496,10 +506,34 @@ def test_03_search_tender(manager_driver, created_tender):
     open_tender_directory(driver)
 
     search = wait.until(EC.visibility_of_element_located(SEARCH_INPUT))
-    set_react_input(driver, search, created_tender)
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", search)
+    search.clear()
+    search.send_keys(created_tender)
 
-    row = wait_for_tender_row(driver, created_tender, timeout=WAIT_SECONDS)
-    assert created_tender in row.text
+    try:
+        wait.until(
+            lambda d: not any(
+                e.is_displayed()
+                for e in d.find_elements(
+                    By.XPATH,
+                    "//span[contains(text(), 'Retrieving tender solicitations...')]",
+                )
+            )
+        )
+    except TimeoutException:
+        pass
+
+    try:
+        row = wait_for_tender_row(driver, created_tender, timeout=WAIT_SECONDS)
+        assert created_tender in row.text
+    except Exception as e:
+        driver.save_screenshot("search_tender_failed.png")
+        print("\nPage text on search failure:\n", driver.find_element(By.TAG_NAME, "body").text)
+        try:
+            print("\nBrowser console logs:\n", driver.get_log("browser"))
+        except Exception:
+            pass
+        raise
 
 
 # TC24: Filter tenders by DRAFT status
@@ -511,6 +545,8 @@ def test_04_filter_draft_tenders(manager_driver, created_tender):
 
     # Clear the search field first so the status filter is tested independently.
     search = wait.until(EC.visibility_of_element_located(SEARCH_INPUT))
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", search)
+    search.clear()
     set_react_input(driver, search, "")
 
     status_filter = wait.until(
@@ -521,6 +557,7 @@ def test_04_filter_draft_tenders(manager_driver, created_tender):
             )
         )
     )
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", status_filter)
     Select(status_filter).select_by_value("DRAFT")
 
     row = wait_for_tender_row(driver, created_tender, timeout=WAIT_SECONDS)

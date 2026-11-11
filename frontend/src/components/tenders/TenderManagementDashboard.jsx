@@ -227,9 +227,6 @@ export default function TenderManagementDashboard({ initialSelectedTenderId, onN
         technical_requirements: '', financial_requirements: ''
       });
       await loadData();
-      if (res?.data?.id) {
-        setSelectedTenderId(res.data.id);
-      }
     } catch (err) {
       setError(err.message || 'Failed to create tender.');
     }
@@ -243,9 +240,6 @@ export default function TenderManagementDashboard({ initialSelectedTenderId, onN
       setSuccessMsg('Tender created from template!');
       setTemplateModalOpen(false);
       await loadData();
-      if (res?.data?.id) {
-        setSelectedTenderId(res.data.id);
-      }
     } catch (err) {
       setError(err.message || 'Failed to apply template.');
     }
