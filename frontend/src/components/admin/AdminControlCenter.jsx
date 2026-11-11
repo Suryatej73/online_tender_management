@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import {
   ShieldCheck, Users, Building2, FileText, AlertTriangle, FileSpreadsheet,
   Download, RefreshCw, CheckCircle2, XCircle, Search, Filter, Ban, AlertCircle,
@@ -6,7 +7,9 @@ import {
 } from 'lucide-react';
 
 export default function AdminControlCenter() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const { user } = useAuth();
+  const isAuditor = user?.role === 'AUDITOR';
+  const [activeTab, setActiveTab] = useState(isAuditor ? 'audit' : 'overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -351,13 +354,19 @@ export default function AdminControlCenter() {
           </div>
           <div>
             <h2 className="text-xl font-extrabold text-white flex items-center gap-2">
-              <span>Admin Governance Command Center</span>
-              <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30 uppercase">
-                Platform Administrator
+              <span>{isAuditor ? 'Statutory Compliance & Audit Trail Console' : 'Admin Governance Command Center'}</span>
+              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                isAuditor 
+                  ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                  : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+              }`}>
+                {isAuditor ? 'Official Platform Auditor' : 'Platform Administrator'}
               </span>
             </h2>
             <p className="text-xs text-white/50 mt-0.5">
-              Enterprise Governance, Verifications, Blacklists, Moderation, Audit Logs & System Policy Control
+              {isAuditor 
+                ? 'Cryptographic Audit Trail, Dual-Envelope Verifications, Anti-Fraud Anomaly Alerts & Regulatory Investigations'
+                : 'Enterprise Governance, Verifications, Blacklists, Moderation, Audit Logs & System Policy Control'}
             </p>
           </div>
         </div>
@@ -395,17 +404,17 @@ export default function AdminControlCenter() {
       {/* Main Navigation Tabs */}
       <div className="flex flex-wrap border-b border-white/10 gap-1 pb-1">
         {[
-          { id: 'overview', label: 'Platform Overview', icon: Activity },
-          { id: 'users', label: 'User Directory & Roles', icon: Users },
-          { id: 'organizations', label: 'Organizations', icon: Building2 },
-          { id: 'vendors', label: 'Vendor Governance & Blacklist', icon: ShieldCheck },
-          { id: 'categories', label: 'Categories', icon: FileSpreadsheet },
-          { id: 'tenders', label: 'Tender Moderation', icon: FileText },
+          { id: 'overview', label: isAuditor ? 'Compliance Telemetry' : 'Platform Overview', icon: Activity },
+          ...(isAuditor ? [] : [{ id: 'users', label: 'User Directory & Roles', icon: Users }]),
+          ...(isAuditor ? [] : [{ id: 'organizations', label: 'Organizations', icon: Building2 }]),
+          { id: 'vendors', label: isAuditor ? 'Vendor Blacklist & Sanctions' : 'Vendor Governance & Blacklist', icon: ShieldCheck },
+          ...(isAuditor ? [] : [{ id: 'categories', label: 'Categories', icon: FileSpreadsheet }]),
+          { id: 'tenders', label: isAuditor ? 'Tender Integrity Records' : 'Tender Moderation', icon: FileText },
           { id: 'complaints', label: 'Complaints & Disputes', icon: MessageSquare },
           { id: 'risk', label: 'Risk & Fraud Alerts', icon: AlertTriangle },
-          { id: 'audit', label: 'Audit Trail & Security', icon: ShieldCheck },
-          { id: 'sessions', label: 'Active Sessions Monitor', icon: Lock },
-          { id: 'settings', label: 'Platform Settings', icon: Settings },
+          { id: 'audit', label: 'Cryptographic Audit Trail', icon: ShieldCheck },
+          ...(isAuditor ? [] : [{ id: 'sessions', label: 'Active Sessions Monitor', icon: Lock }]),
+          ...(isAuditor ? [] : [{ id: 'settings', label: 'Platform Settings', icon: Settings }]),
         ].map(t => {
           const Icon = t.icon;
           const isActive = activeTab === t.id;

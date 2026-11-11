@@ -1310,6 +1310,19 @@ class OrganizationsView(APIView):
         serializer = OrganizationSerializer(orgs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    def post(self, request):
+        if not hasattr(request, 'user') or not request.user.is_authenticated:
+            return Response({"error": "Unauthorized: Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+        if getattr(request.user, 'role', None) not in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]:
+            return Response({"error": "Forbidden: Requires Super Admin or Org Admin role to register organizations."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = OrganizationSerializer(data=request.data)
+        if serializer.is_valid():
+            org = serializer.save()
+            log_activity(request.user, "Created Organization", resource=f"Organization: {org.name}", details=f"Code: {org.code}", request=request)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class DepartmentsView(APIView):
     permission_classes = [permissions.AllowAny]

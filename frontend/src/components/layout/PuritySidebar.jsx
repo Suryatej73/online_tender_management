@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, FileText, Gavel, Building2, FileCheck,
-  Award, HelpCircle, ExternalLink, ShieldCheck
+  Award, HelpCircle, ExternalLink, ShieldCheck, Users, ClipboardCheck
 } from 'lucide-react';
 
 export default function PuritySidebar({ activeTab, onTabChange, currentUser, onExploreClick }) {
@@ -11,35 +11,42 @@ export default function PuritySidebar({ activeTab, onTabChange, currentUser, onE
   const isTenderManager = role === 'TENDER_MANAGER' || isSuperAdmin || isOrgAdmin;
   const isVendor = role === 'VENDOR';
   const isEvaluator = role === 'EVALUATOR';
+  const isAuditor = role === 'AUDITOR';
 
   const navItems = [
-    { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+    { id: 'dashboard', label: isAuditor ? 'Audit Command Center' : 'Command Center', icon: LayoutDashboard },
     {
       id: 'tenders',
-      label: isVendor ? 'Tenders & Solicitations' : 'Tenders & BOQ',
+      label: isVendor ? 'Tenders & Solicitations' : isAuditor ? 'Tender Audit Records' : 'Tenders & BOQ',
       icon: FileText
     },
-    // Bids & Proposals: Vendors see "My Bids & Proposals", Tender Managers/Admins see "Received Bids", Evaluators do not manage bids
+    // Bids & Proposals: Vendors see "My Bids", Managers/Admins see "Received Bids", Auditors see "Bid Oversight", Evaluators do not manage bids
     ...(!isEvaluator ? [{
       id: 'bids',
-      label: isVendor ? 'My Bids & Proposals' : 'Received Bids',
+      label: isVendor ? 'My Bids & Proposals' : isAuditor ? 'Bid Integrity Records' : 'Received Bids',
       icon: Gavel
     }] : []),
-    // Vendor 360: Supplier Master Directory & Due Diligence (Only for Tender Managers and Admins)
+    // Vendor 360: Supplier Master Directory & Due Diligence (Tender Managers, Org Admins, Super Admins)
     ...(isTenderManager ? [{ id: 'vendors', label: 'Vendor 360', icon: Building2 }] : []),
-    // Document Vault: Contextual document repository
+    // Document Vault: Contextual document repository (All roles)
     { id: 'documents', label: 'Document Vault', icon: FileCheck },
-    // Evaluations & Awards: Committee and Tender Managers only. Strictly hidden for Vendors!
+    // Evaluations & Awards: Committee, Tender Managers, Admins, and Auditors. Strictly hidden for Vendors!
     ...(!isVendor ? [{
       id: 'evaluations',
-      label: isSuperAdmin ? 'Evaluator Oversight' : 'Evaluations & Awards',
+      label: isSuperAdmin ? 'Evaluator Oversight' : isAuditor ? 'Evaluations Audit' : 'Evaluations & Awards',
       icon: Award
     }] : []),
-    // Admin Governance & Integrity Control Center (Super Admin & Org Admin only)
+    // Team / User Management: Org Admin & Super Admin only
     ...(isSuperAdmin || isOrgAdmin ? [{
+      id: 'users',
+      label: isOrgAdmin ? 'Team Directory' : 'User Directory',
+      icon: Users
+    }] : []),
+    // Admin Governance & Audit Trail: Super Admin & Auditor
+    ...(isSuperAdmin || isAuditor ? [{
       id: 'admin_governance',
-      label: 'Admin Governance',
-      icon: ShieldCheck
+      label: isAuditor ? 'Audit & Forensic Trail' : 'Platform Governance',
+      icon: isAuditor ? ClipboardCheck : ShieldCheck
     }] : []),
   ];
 

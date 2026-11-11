@@ -21,6 +21,24 @@ function formatTimeAgo(dateString) {
   }
 }
 
+const ROLE_DISPLAY_NAMES = {
+  SUPER_ADMIN: 'Super Admin',
+  ORG_ADMIN: 'Organization Admin',
+  TENDER_MANAGER: 'Tender Manager',
+  VENDOR: 'Vendor / Bidder',
+  EVALUATOR: 'Evaluator',
+  AUDITOR: 'Auditor'
+};
+
+const ROLE_BADGE_CLASSES = {
+  SUPER_ADMIN: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+  ORG_ADMIN: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  TENDER_MANAGER: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+  VENDOR: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+  EVALUATOR: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+  AUDITOR: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+};
+
 export default function PurityNavbar({
   activeTab,
   currentUser,
@@ -363,8 +381,8 @@ export default function PurityNavbar({
                       {currentUser.email}
                     </p>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold bg-orange-500/15 text-orange-400 border border-orange-500/30">
-                        {currentUser.role || 'Member'}
+                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-bold border ${ROLE_BADGE_CLASSES[currentUser.role] || 'bg-orange-500/15 text-orange-400 border-orange-500/30'}`}>
+                        {ROLE_DISPLAY_NAMES[currentUser.role] || currentUser.role || 'Member'}
                       </span>
                     </div>
                   </div>
@@ -536,8 +554,8 @@ export default function PurityNavbar({
               <span className="block text-white font-bold truncate max-w-[120px]">
                 {currentUser.full_name || currentUser.username || 'User'}
               </span>
-              <span className="text-[10px] text-white/40 font-mono">
-                {currentUser.role || 'Member'}
+              <span className="text-[10px] text-white/50 font-mono">
+                {ROLE_DISPLAY_NAMES[currentUser.role] || currentUser.role || 'Member'}
               </span>
             </div>
           </button>

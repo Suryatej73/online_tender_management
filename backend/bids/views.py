@@ -139,7 +139,7 @@ class BidListCreateView(APIView):
 
         if is_authenticated and user.role == UserRole.VENDOR:
             bids = Bid.objects.filter(Q(vendor__user=user) | Q(created_by=user), is_deleted=False)
-        elif is_authenticated and user.role in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.TENDER_MANAGER, UserRole.EVALUATOR]:
+        elif is_authenticated and user.role in [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.TENDER_MANAGER, UserRole.EVALUATOR, UserRole.AUDITOR]:
             bids = Bid.objects.filter(is_deleted=False)
         else:
             bids = Bid.objects.none()

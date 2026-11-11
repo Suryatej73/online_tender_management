@@ -108,6 +108,10 @@ function TenderXApp() {
       setActiveTab('evaluations');
     } else if (role === 'TENDER_MANAGER' && ['admin_governance', 'users', 'rbac'].includes(activeTab)) {
       setActiveTab('dashboard');
+    } else if (role === 'AUDITOR' && ['vendors', 'users', 'rbac'].includes(activeTab)) {
+      setActiveTab('dashboard');
+    } else if (role === 'ORG_ADMIN' && ['admin_governance', 'rbac'].includes(activeTab)) {
+      setActiveTab('dashboard');
     }
   }, [user?.role, activeTab]);
 

@@ -105,7 +105,7 @@ class DocumentListView(APIView):
                     (Q(owner_type='TENDER') & (Q(uploaded_by__role__in=[UserRole.TENDER_MANAGER, UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN]) | Q(uploaded_by__isnull=True))) |
                     Q(uploaded_by=user)
                 )
-        elif user.role != UserRole.SUPER_ADMIN:
+        elif user.role not in [UserRole.SUPER_ADMIN, UserRole.AUDITOR]:
             if scope == 'mine':
                 queryset = queryset.filter(uploaded_by=user)
             elif scope == 'tenders':

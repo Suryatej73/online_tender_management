@@ -766,10 +766,12 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
                   onChange={handleChange}
                   style={{ ...underlineInputStyle, cursor: 'pointer' }}
                 >
-                  <option value="VENDOR">🏢 Vendor / Bidder</option>
-                  <option value="TENDER_MANAGER">🏛️ Tender Manager</option>
-                  <option value="EVALUATOR">⚖️ Evaluator</option>
-                  <option value="SUPER_ADMIN">🛡️ Super Admin</option>
+                  <option value="VENDOR">🏢 Vendor / Bidder (Supplier)</option>
+                  <option value="TENDER_MANAGER">🏛️ Tender Manager (Procurement Authority)</option>
+                  <option value="EVALUATOR">⚖️ Evaluator (Evaluation Committee)</option>
+                  <option value="ORG_ADMIN">🏢 Organization Admin (Org Controller)</option>
+                  <option value="AUDITOR">📋 Auditor (Compliance & Oversight)</option>
+                  <option value="SUPER_ADMIN">🛡️ Super Admin (Platform Owner)</option>
                 </select>
                 <input
                   type="text"
