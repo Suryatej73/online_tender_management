@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import authBannerImg from '../assets/auth-banner.png';
 import {
@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Building2,
   UserCheck,
+  Sparkles,
 } from 'lucide-react';
 
 const GoogleIcon = () => (
@@ -311,22 +312,17 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
   };
 
   return (
-    <AnimatePresence>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-[#0c0915]/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-[#0c0915]/80 backdrop-blur-md overflow-y-auto"
-        onClick={onClose}
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        className="relative w-full max-w-[940px] bg-[#1e1b29] border border-white/10 rounded-[28px] shadow-[0_25px_70px_-15px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col md:flex-row my-auto"
+        onClick={(e) => e.stopPropagation()}
       >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 16 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 12 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-          className="relative w-full max-w-[940px] bg-[#1e1b29] border border-white/10 rounded-[28px] shadow-[0_25px_70px_-15px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col md:flex-row my-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
           {/* Close Button Top Right */}
           <button
             type="button"
@@ -347,13 +343,15 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
                 className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
               />
 
-              {/* Interactive overlay on top of banner pill button */}
-              <div className="relative z-10 p-5 flex items-center justify-between">
+              {/* Top Navigation & Brand Header */}
+              <div className="relative z-10 p-6 flex items-center justify-between">
                 {/* Visual Brand Mark */}
-                <div className="flex items-center gap-1.5 opacity-90 hover:opacity-100 transition">
-                  <span className="text-xl font-bold tracking-widest text-white/95 drop-shadow">ΛMU</span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-white/10 text-white/80 border border-white/15 ml-1">
-                    TenderX
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#7052db] to-purple-400 flex items-center justify-center font-bold text-white text-sm shadow-md shadow-purple-900/40">
+                    tX
+                  </div>
+                  <span className="text-lg font-bold tracking-tight text-white drop-shadow">
+                    Tender<span className="text-purple-300">X</span>
                   </span>
                 </div>
 
@@ -368,22 +366,28 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
                 </button>
               </div>
 
-              {/* Bottom Tagline & Carousel Indicators */}
-              <div className="relative z-10 p-6 pt-0">
-                <h3 className="text-2xl lg:text-[26px] font-semibold text-white/95 leading-tight tracking-tight drop-shadow-md">
-                  Capturing Moments,
+              {/* Bottom Website Tagline & Carousel Indicators */}
+              <div className="relative z-10 p-7 pt-0">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/25 border border-purple-400/30 text-purple-200 text-[11px] font-semibold mb-3 backdrop-blur-md">
+                  <Sparkles size={12} className="text-purple-300" />
+                  <span>The Intelligent Procurement OS</span>
+                </div>
+
+                <h3 className="text-2xl lg:text-[28px] font-bold text-white leading-tight tracking-tight drop-shadow-md">
+                  Every Tender.
                   <br />
-                  Creating Memories
+                  <span className="text-purple-300">One Intelligent Platform.</span>
                 </h3>
-                <p className="text-xs text-white/60 mt-1.5 drop-shadow">
-                  Next-generation autonomous tender management & bidding.
+
+                <p className="text-xs text-white/75 mt-2.5 leading-relaxed drop-shadow max-w-[340px]">
+                  Discover opportunities, validate compliance, build stronger bids, and manage procurement lifecycle securely.
                 </p>
 
                 {/* Three indicator lines */}
-                <div className="flex items-center gap-2 mt-4">
-                  <span className="w-6 h-1 rounded-full bg-white/30" />
-                  <span className="w-6 h-1 rounded-full bg-white/30" />
-                  <span className="w-10 h-1 rounded-full bg-white shadow-sm" />
+                <div className="flex items-center gap-2 mt-5">
+                  <span className="w-9 h-1 rounded-full bg-white shadow-sm" />
+                  <span className="w-5 h-1 rounded-full bg-white/35" />
+                  <span className="w-5 h-1 rounded-full bg-white/35" />
                 </div>
               </div>
             </div>
@@ -743,7 +747,6 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
             </div>
           </div>
         </motion.div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
   );
 }
