@@ -7,7 +7,6 @@ import AuthModal from './components/AuthModal';
 import MFASetup from './components/MFASetup';
 import SessionManager from './components/SessionManager';
 import RbacInspector from './components/RbacInspector';
-import SplitScreenAuth from './components/auth/SplitScreenAuth';
 import UserManagementDashboard from './components/users/UserManagementDashboard';
 import PermissionMatrix from './components/users/PermissionMatrix';
 import AddEditUserModal from './components/users/AddEditUserModal';

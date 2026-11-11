@@ -1,16 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { LOGIN_BOTANICAL_URI } from './loginBotanicalData';
+import authBannerImg from '../assets/auth-banner.png';
 import {
   X,
   Eye,
   EyeOff,
-  CheckCircle2,
+  Check,
   AlertCircle,
   Smartphone,
   RefreshCw,
+  Loader2,
+  ArrowRight,
+  ShieldCheck,
+  Building2,
+  UserCheck,
 } from 'lucide-react';
+
+const GoogleIcon = () => (
+  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+    <path
+      fill="#4285F4"
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+    />
+  </svg>
+);
 
 export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
   const { saveAuth, login, register, verifyOtp, resendOtp, googleLogin } = useAuth();
@@ -18,19 +44,20 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
   const normalizeTab = (t) => (t === 'register' || t === 'signup' ? 'signup' : 'login');
   const [tab, setTab] = useState(normalizeTab(initialTab));
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(true);
   const [showGooglePicker, setShowGooglePicker] = useState(false);
   const [customGoogleEmail, setCustomGoogleEmail] = useState('');
 
-  // Same-page OTP state
+  // OTP Verification States
   const [otpPending, setOtpPending] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [tempToken, setTempToken] = useState(null);
   const [maskedEmail, setMaskedEmail] = useState('');
   const [otpPurpose, setOtpPurpose] = useState('LOGIN');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [demoOtpHint, setDemoOtpHint] = useState(null);
 
-  // MFA fallback state (if user has TOTP MFA enabled)
+  // MFA fallback state
   const [mfaPending, setMfaPending] = useState(false);
   const [mfaUserId, setMfaUserId] = useState(null);
 
@@ -57,6 +84,8 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
       setMfaPending(false);
       setError(null);
       setMsg(null);
+      setDemoOtpHint(null);
+      setShowGooglePicker(false);
     }
   }, [initialTab, isOpen]);
 
@@ -72,17 +101,15 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
 
   if (!isOpen) return null;
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // If user edits email or password after OTP was sent, allow re-sending on next submit
     if (otpPending && (name === 'email' || name === 'password')) {
       setOtpPending(false);
       setOtpCode('');
       setTempToken(null);
       setMsg(null);
+      setDemoOtpHint(null);
     }
   };
 
@@ -94,12 +121,23 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setMfaPending(false);
     setError(null);
     setMsg(null);
+    setDemoOtpHint(null);
+    setShowGooglePicker(false);
   };
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     if (otpPending) {
       await handleVerifyOtp();
+      return;
+    }
+
+    if (!formData.email || !formData.email.includes('@')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!formData.password) {
+      setError('Please enter your password.');
       return;
     }
 
@@ -113,15 +151,14 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         setMaskedEmail(data.masked_email || formData.email);
         setOtpPurpose(data.purpose || 'LOGIN');
         setOtpPending(true);
-        if (data.demo_otp_hint) {
-          setOtpCode(data.demo_otp_hint);
-        } else {
-          setOtpCode('');
-        }
+        setOtpCode('');
         setResendCooldown(60);
+        if (data.demo_otp_hint) {
+          setDemoOtpHint(data.demo_otp_hint);
+        }
         setMsg(
           data.message ||
-            `OTP sent to ${data.masked_email || formData.email}. Please enter it below.`
+            `Security verification code sent to ${data.masked_email || formData.email}. Check your email inbox.`
         );
       } else if (data.mfa_required) {
         setMfaUserId(data.user_id);
@@ -132,7 +169,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         setTimeout(onClose, 800);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -145,8 +182,16 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
       return;
     }
 
-    if (formData.password !== formData.password_confirm) {
-      setError('Passwords do not match.');
+    if (!formData.email || !formData.email.includes('@')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!formData.password || formData.password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (!agreeTerms) {
+      setError('You must agree to the Terms & Conditions to create an account.');
       return;
     }
 
@@ -154,28 +199,31 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setError(null);
     setMsg(null);
     try {
-      const data = await register(formData);
+      const payload = {
+        ...formData,
+        password_confirm: formData.password_confirm || formData.password,
+      };
+      const data = await register(payload);
       if (data.otp_required) {
         setTempToken(data.temp_token);
         setMaskedEmail(data.masked_email || formData.email);
         setOtpPurpose(data.purpose || 'SIGNUP');
         setOtpPending(true);
-        if (data.demo_otp_hint) {
-          setOtpCode(data.demo_otp_hint);
-        } else {
-          setOtpCode('');
-        }
+        setOtpCode('');
         setResendCooldown(60);
+        if (data.demo_otp_hint) {
+          setDemoOtpHint(data.demo_otp_hint);
+        }
         setMsg(
           data.message ||
-            `Verification OTP sent to ${data.masked_email || formData.email}. Enter it below to complete sign up.`
+            `Verification code sent to ${data.masked_email || formData.email}. Enter it below to complete sign up.`
         );
       } else {
-        setMsg(`Signed up successfully!`);
+        setMsg('Account created successfully!');
         setTimeout(onClose, 1000);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Registration failed. Please check your details.');
     } finally {
       setLoading(false);
     }
@@ -183,7 +231,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
 
   const handleVerifyOtp = async () => {
     if (!otpCode || otpCode.length < 6) {
-      setError('Please enter the 6-digit OTP sent to your email.');
+      setError('Please enter the 6-digit verification code sent to your email.');
       return;
     }
     setLoading(true);
@@ -202,57 +250,33 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         setMfaPending(true);
         setMsg('Multi-Factor Authentication required.');
       } else {
-        setMsg('OTP verified! Logging you in...');
+        setMsg('OTP verified successfully! Logging you in...');
         setTimeout(onClose, 700);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Invalid or expired verification code.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendOtp = async () => {
-    if (resendCooldown > 0 || loading) return;
+    if (resendCooldown > 0) return;
     setLoading(true);
     setError(null);
-    setMsg(null);
     try {
       const data = await resendOtp({
-        temp_token: tempToken,
         email: formData.email,
         purpose: otpPurpose,
       });
-      if (data.temp_token) setTempToken(data.temp_token);
-      if (data.masked_email) setMaskedEmail(data.masked_email);
+      setTempToken(data.temp_token);
       setResendCooldown(60);
-      setMsg(data.message || 'A new 6-digit OTP has been sent to your email.');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMfaSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/auth/login/mfa/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: mfaUserId, totp_code: formData.totp_code }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || data.detail || 'MFA verification failed.');
+      if (data.demo_otp_hint) {
+        setDemoOtpHint(data.demo_otp_hint);
       }
-      saveAuth(data.user, data.tokens);
-      setMsg('Authentication successful!');
-      setTimeout(onClose, 700);
+      setMsg(data.message || `A new verification code has been dispatched to ${data.masked_email || formData.email}.`);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to resend code. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -264,945 +288,462 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setMsg(null);
     try {
       const data = await googleLogin(gEmail);
-      setMsg(`Signed in with Google as ${data.user.email}!`);
+      setMsg(`Authenticated with Google as ${data.user.email}!`);
       setShowGooglePicker(false);
       setTimeout(onClose, 800);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Google authentication failed.');
     } finally {
       setLoading(false);
     }
   };
 
   const googleAccounts = [
-    { email: 'admin.procurement@gmail.com', name: 'Super Admin (TenderX Gov)', role: 'SUPER_ADMIN', avatar: 'A' },
-    { email: 'vendor.globaltech@gmail.com', name: 'GlobalTech Innovations', role: 'VENDOR', avatar: 'G' },
-    { email: 'authority.digital@gmail.com', name: 'Ministry of Digital Affairs', role: 'ORG_ADMIN', avatar: 'M' },
+    { email: 'admin.procurement@gmail.com', name: 'Super Admin', role: 'SUPER_ADMIN', desc: 'Government Authority' },
+    { email: 'tenderx69@gmail.com', name: 'TenderX Lead', role: 'TENDER_MANAGER', desc: 'Procurement Specialist' },
+    { email: 'iitsuryatej@gmail.com', name: 'Suryatej Reddy', role: 'VENDOR', desc: 'Verified Global Contractor' },
   ];
 
-  const underlineInputStyle = {
-    width: '100%',
-    padding: '0.55rem 0.1rem',
-    border: 'none',
-    borderBottom: '1.8px solid #58727f',
-    background: 'transparent',
-    color: '#2c3e47',
-    fontSize: '0.92rem',
-    outline: 'none',
-    transition: 'border-color 150ms',
+  const quickFillCredentials = (email, pwd) => {
+    setFormData((prev) => ({ ...prev, email, password: pwd }));
+    setError(null);
+    setMsg(null);
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(10, 16, 28, 0.78)',
-        backdropFilter: 'blur(10px)',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.25rem',
-      }}
-      onClick={onClose}
-    >
+    <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 8 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 26 }}
-        style={{
-          width: '100%',
-          maxWidth: '860px',
-          minHeight: '540px',
-          background: '#ffffff',
-          borderRadius: '20px',
-          padding: '10px',
-          display: 'flex',
-          flexDirection: 'row',
-          position: 'relative',
-          boxShadow: '0 28px 70px rgba(0, 0, 0, 0.5)',
-          overflow: 'hidden',
-        }}
-        onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-[#0c0915]/80 backdrop-blur-md overflow-y-auto"
+        onClick={onClose}
       >
-        {/* Close Button */}
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close modal"
-          style={{
-            position: 'absolute',
-            top: '1.1rem',
-            right: '1.1rem',
-            zIndex: 20,
-            background: 'transparent',
-            border: 'none',
-            color: '#7c9099',
-            cursor: 'pointer',
-            padding: '0.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 12 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+          className="relative w-full max-w-[940px] bg-[#1e1b29] border border-white/10 rounded-[28px] shadow-[0_25px_70px_-15px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col md:flex-row my-auto"
+          onClick={(e) => e.stopPropagation()}
         >
-          <X size={20} />
-        </button>
+          {/* Close Button Top Right */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close dialog"
+            className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white transition cursor-pointer"
+          >
+            <X size={18} />
+          </button>
 
-        {/* Left Botanical Illustration Panel */}
-        <div
-          className="hidden sm:block"
-          style={{
-            width: '43%',
-            minHeight: '520px',
-            borderRadius: '14px',
-            overflow: 'hidden',
-            flexShrink: 0,
-            backgroundColor: '#7d9ea3',
-            backgroundImage: `url(${LOGIN_BOTANICAL_URI})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        />
+          {/* Left Column: Visual Dunes Banner (Matches Screenshot) */}
+          <div className="hidden md:block relative w-[46%] min-h-[580px] p-2.5 select-none shrink-0">
+            <div className="relative w-full h-full rounded-[22px] overflow-hidden shadow-inner flex flex-col justify-between">
+              {/* Dunes Background Image */}
+              <img
+                src={authBannerImg}
+                alt="TenderX Dunes"
+                className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
+              />
 
-        {/* Right Form Panel */}
-        <div
-          style={{
-            flex: 1,
-            padding: '2.25rem 2.75rem',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            color: '#3e5864',
-            position: 'relative',
-          }}
-        >
-          {/* Greeting Header */}
-          <div style={{ marginBottom: '1.35rem' }}>
-            <h2
-              style={{
-                fontSize: '2.25rem',
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-                margin: 0,
-                color: '#486370',
-                fontWeight: 500,
-              }}
-            >
-              <span style={{ fontWeight: 800, color: '#6e8c91' }}>Hello,</span>{' '}
-              <span>Guyss!</span>
-            </h2>
+              {/* Interactive overlay on top of banner pill button */}
+              <div className="relative z-10 p-5 flex items-center justify-between">
+                {/* Visual Brand Mark */}
+                <div className="flex items-center gap-1.5 opacity-90 hover:opacity-100 transition">
+                  <span className="text-xl font-bold tracking-widest text-white/95 drop-shadow">ΛMU</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-white/10 text-white/80 border border-white/15 ml-1">
+                    TenderX
+                  </span>
+                </div>
+
+                {/* Back to website button */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-3.5 py-1.5 rounded-full bg-black/30 hover:bg-black/50 border border-white/20 text-white/90 text-xs font-medium backdrop-blur-md transition flex items-center gap-1.5 shadow-sm cursor-pointer group"
+                >
+                  <span>Back to website</span>
+                  <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+                </button>
+              </div>
+
+              {/* Bottom Tagline & Carousel Indicators */}
+              <div className="relative z-10 p-6 pt-0">
+                <h3 className="text-2xl lg:text-[26px] font-semibold text-white/95 leading-tight tracking-tight drop-shadow-md">
+                  Capturing Moments,
+                  <br />
+                  Creating Memories
+                </h3>
+                <p className="text-xs text-white/60 mt-1.5 drop-shadow">
+                  Next-generation autonomous tender management & bidding.
+                </p>
+
+                {/* Three indicator lines */}
+                <div className="flex items-center gap-2 mt-4">
+                  <span className="w-6 h-1 rounded-full bg-white/30" />
+                  <span className="w-6 h-1 rounded-full bg-white/30" />
+                  <span className="w-10 h-1 rounded-full bg-white shadow-sm" />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Login / SignUp Tabs */}
-          {!mfaPending && (
-            <div
-              style={{
-                display: 'flex',
-                 justifyContent: 'center',
-                gap: '2.5rem',
-                marginBottom: '1.75rem',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => switchTab('login')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: tab === 'login' ? '2.5px solid #486370' : '2.5px solid transparent',
-                  padding: '0.25rem 0.6rem 0.4rem',
-                  fontSize: '1.2rem',
-                  fontWeight: 700,
-                  color: tab === 'login' ? '#486370' : '#bac6ca',
-                  cursor: 'pointer',
-                  transition: 'all 150ms ease',
-                }}
-              >
-                Login
-              </button>
-              <button
-                type="button"
-                onClick={() => switchTab('signup')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: tab === 'signup' ? '2.5px solid #486370' : '2.5px solid transparent',
-                  padding: '0.25rem 0.6rem 0.4rem',
-                  fontSize: '1.2rem',
-                  fontWeight: 700,
-                  color: tab === 'signup' ? '#486370' : '#bac6ca',
-                  cursor: 'pointer',
-                  transition: 'all 150ms ease',
-                }}
-              >
-                SignUp
-              </button>
-            </div>
-          )}
-
-          {/* Status / Error Alerts */}
-          {msg && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                background: '#ecfdf5',
-                border: '1px solid #a7f3d0',
-                color: '#065f46',
-                padding: '0.6rem 0.8rem',
-                borderRadius: '8px',
-                fontSize: '0.8rem',
-                marginBottom: '1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-              }}
-            >
-              <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
-              <span>{msg}</span>
-            </motion.div>
-          )}
-
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                color: '#b91c1c',
-                padding: '0.6rem 0.8rem',
-                borderRadius: '8px',
-                fontSize: '0.8rem',
-                marginBottom: '1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-              }}
-            >
-              <AlertCircle size={16} style={{ flexShrink: 0 }} />
-              <span>{error}</span>
-            </motion.div>
-          )}
-
-          {/* LOGIN TAB (with same-page OTP verification) */}
-          {tab === 'login' && !mfaPending && (
-            <form
-              onSubmit={handleLoginSubmit}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.35rem',
-                maxWidth: '340px',
-                width: '100%',
-                margin: '0 auto',
-              }}
-            >
-              <div>
-                <input
-                  type="email"
-                  name="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="Enter your email"
-                  style={underlineInputStyle}
-                />
-              </div>
-
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Enter Password"
-                  style={{ ...underlineInputStyle, paddingRight: '2.2rem' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  style={{
-                    position: 'absolute',
-                    right: '0.1rem',
-                    bottom: '0.5rem',
-                    background: 'none',
-                    border: 'none',
-                    color: '#58727f',
-                    cursor: 'pointer',
-                    padding: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                >
-                  {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
-                </button>
-              </div>
-
-              {/* Same-page OTP Input shown after entering login details */}
-              <AnimatePresence>
-                {otpPending && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    style={{ overflow: 'hidden' }}
-                  >
-                    <div style={{ paddingTop: '0.2rem' }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: '0.35rem',
-                          fontSize: '0.76rem',
-                          color: '#58727f',
-                        }}
-                      >
-                        <span>OTP sent to {maskedEmail || formData.email}</span>
-                        <button
-                          type="button"
-                          onClick={handleResendOtp}
-                          disabled={resendCooldown > 0 || loading}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: resendCooldown > 0 ? '#9eb0b8' : '#486370',
-                            fontWeight: 700,
-                            fontSize: '0.75rem',
-                            cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: 0,
-                          }}
-                        >
-                          <RefreshCw size={12} />
-                          {resendCooldown > 0 ? `Resend (${resendCooldown}s)` : 'Resend OTP'}
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        required
-                        autoFocus
-                        value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                        placeholder="Enter 6-digit OTP"
-                        style={{
-                          ...underlineInputStyle,
-                          letterSpacing: otpCode ? '0.35em' : 'normal',
-                          fontWeight: otpCode ? 700 : 400,
-                          borderBottom: '2px solid #486370',
-                        }}
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <motion.button
-                type="submit"
-                disabled={loading}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  marginTop: '0.35rem',
-                  background: '#4b6572',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '2px',
-                  fontSize: '0.92rem',
-                  fontWeight: 700,
-                  cursor: loading ? 'wait' : 'pointer',
-                  transition: 'background 150ms',
-                }}
-              >
-                {loading
-                  ? otpPending
-                    ? 'Verifying OTP...'
-                    : 'Sending OTP...'
-                  : otpPending
-                  ? 'Verify OTP & Login'
-                  : 'Login'}
-              </motion.button>
-
-              {/* Or Divider & Social Buttons */}
-              <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
-                <span style={{ fontSize: '0.9rem', color: '#9aaab2', fontWeight: 500 }}>
-                  Or
-                </span>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '1.5rem',
-                    marginTop: '0.85rem',
-                  }}
-                >
-                  {/* Google Button */}
-                  <button
-                    type="button"
-                    onClick={() => setShowGooglePicker(true)}
-                    title="Sign in with Google"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '0.2rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <svg width="24" height="24" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                  </button>
-
-                  {/* Facebook Button */}
-                  <button
-                    type="button"
-                    onClick={() => setShowGooglePicker(true)}
-                    title="Continue with Social Account"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '0.2rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <svg width="24" height="24" viewBox="0 0 24 24">
-                      <path
-                        fill="#1877F2"
-                        d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </form>
-          )}
-
-          {/* SIGNUP TAB (with same-page OTP verification) */}
-          {tab === 'signup' && !mfaPending && (
-            <form
-              onSubmit={handleSignupSubmit}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.95rem',
-                maxWidth: '340px',
-                width: '100%',
-                margin: '0 auto',
-              }}
-            >
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
-                <input
-                  type="text"
-                  name="first_name"
-                  required
-                  value={formData.first_name}
-                  onChange={handleChange}
-                  placeholder="First Name"
-                  style={underlineInputStyle}
-                />
-                <input
-                  type="text"
-                  name="last_name"
-                  required
-                  value={formData.last_name}
-                  onChange={handleChange}
-                  placeholder="Last Name"
-                  style={underlineInputStyle}
-                />
-              </div>
-
-              <div>
-                <input
-                  type="email"
-                  name="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="Enter your email"
-                  style={underlineInputStyle}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
-                <select
-                  name="role"
-                  value={formData.role}
-                  onChange={handleChange}
-                  style={{ ...underlineInputStyle, cursor: 'pointer' }}
-                >
-                  <option value="VENDOR">🏢 Vendor / Bidder (Supplier)</option>
-                  <option value="TENDER_MANAGER">🏛️ Tender Manager (Procurement Authority)</option>
-                  <option value="EVALUATOR">⚖️ Evaluator (Evaluation Committee)</option>
-                  <option value="ORG_ADMIN">🏢 Organization Admin (Org Controller)</option>
-                  <option value="AUDITOR">📋 Auditor (Compliance & Oversight)</option>
-                  <option value="SUPER_ADMIN">🛡️ Super Admin (Platform Owner)</option>
-                </select>
-                <input
-                  type="text"
-                  name="organization_name"
-                  value={formData.organization_name}
-                  onChange={handleChange}
-                  placeholder="Organization"
-                  style={underlineInputStyle}
-                />
-              </div>
-
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Enter Password"
-                  style={{ ...underlineInputStyle, paddingRight: '2.2rem' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  style={{
-                    position: 'absolute',
-                    right: '0.1rem',
-                    bottom: '0.5rem',
-                    background: 'none',
-                    border: 'none',
-                    color: '#58727f',
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  {showPassword ? <Eye size={17} /> : <EyeOff size={17} />}
-                </button>
-              </div>
-
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  name="password_confirm"
-                  required
-                  value={formData.password_confirm}
-                  onChange={handleChange}
-                  placeholder="Confirm Password"
-                  style={{ ...underlineInputStyle, paddingRight: '2.2rem' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  style={{
-                    position: 'absolute',
-                    right: '0.1rem',
-                    bottom: '0.5rem',
-                    background: 'none',
-                    border: 'none',
-                    color: '#58727f',
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  {showConfirmPassword ? <Eye size={17} /> : <EyeOff size={17} />}
-                </button>
-              </div>
-
-              {/* Same-page OTP Input after entering signup details */}
-              <AnimatePresence>
-                {otpPending && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    style={{ overflow: 'hidden' }}
-                  >
-                    <div style={{ paddingTop: '0.15rem' }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: '0.3rem',
-                          fontSize: '0.75rem',
-                          color: '#58727f',
-                        }}
-                      >
-                        <span>OTP sent to {maskedEmail || formData.email}</span>
-                        <button
-                          type="button"
-                          onClick={handleResendOtp}
-                          disabled={resendCooldown > 0 || loading}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: resendCooldown > 0 ? '#9eb0b8' : '#486370',
-                            fontWeight: 700,
-                            fontSize: '0.74rem',
-                            cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer',
-                            padding: 0,
-                          }}
-                        >
-                          {resendCooldown > 0 ? `Resend (${resendCooldown}s)` : 'Resend OTP'}
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        required
-                        autoFocus
-                        value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                        placeholder="Enter 6-digit OTP"
-                        style={{
-                          ...underlineInputStyle,
-                          letterSpacing: otpCode ? '0.35em' : 'normal',
-                          fontWeight: otpCode ? 700 : 400,
-                          borderBottom: '2px solid #486370',
-                        }}
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <motion.button
-                type="submit"
-                disabled={loading}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                style={{
-                  width: '100%',
-                  padding: '0.72rem',
-                  marginTop: '0.3rem',
-                  background: '#4b6572',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '2px',
-                  fontSize: '0.92rem',
-                  fontWeight: 700,
-                  cursor: loading ? 'wait' : 'pointer',
-                }}
-              >
-                {loading
-                  ? otpPending
-                    ? 'Verifying OTP...'
-                    : 'Creating Account...'
-                  : otpPending
-                  ? 'Verify OTP & SignUp'
-                  : 'SignUp'}
-              </motion.button>
-
-              <div style={{ textAlign: 'center', marginTop: '0.15rem' }}>
-                <span style={{ fontSize: '0.88rem', color: '#9aaab2', fontWeight: 500 }}>
-                  Or
-                </span>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '1.5rem',
-                    marginTop: '0.6rem',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setShowGooglePicker(true)}
-                    title="Sign up with Google"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem' }}
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowGooglePicker(true)}
-                    title="Continue with Social Account"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem' }}
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24">
-                      <path
-                        fill="#1877F2"
-                        d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </form>
-          )}
-
-          {/* Optional TOTP MFA Verification Step */}
-          {mfaPending && (
-            <form
-              onSubmit={handleMfaSubmit}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1rem',
-                maxWidth: '340px',
-                width: '100%',
-                margin: '0 auto',
-              }}
-            >
-              <div style={{ textAlign: 'center' }}>
-                <Smartphone size={32} style={{ color: '#4b6572', margin: '0 auto 0.4rem' }} />
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#486370' }}>
-                  Authenticator Verification
-                </h3>
-                <p style={{ fontSize: '0.8rem', color: '#7c9099' }}>
-                  Enter the 6-digit code from your Authenticator app
-                </p>
-              </div>
-              <input
-                type="text"
-                name="totp_code"
-                maxLength={6}
-                required
-                value={formData.totp_code}
-                onChange={handleChange}
-                placeholder="Enter 6-digit TOTP"
-                style={{
-                  ...underlineInputStyle,
-                  textAlign: 'center',
-                  letterSpacing: '0.35em',
-                  fontSize: '1.2rem',
-                  fontWeight: 700,
-                }}
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  background: '#4b6572',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '2px',
-                  fontSize: '0.92rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                {loading ? 'Verifying...' : 'Verify MFA'}
-              </button>
-            </form>
-          )}
-
-          {/* Google Account Picker Overlay */}
-          {showGooglePicker && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                zIndex: 30,
-                background: 'rgba(255, 255, 255, 0.98)',
-                padding: '2rem',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '1rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#334e58', margin: 0 }}>
-                      Choose an Account
-                    </h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowGooglePicker(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#7c9099',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  {googleAccounts.map((acc) => (
+          {/* Right Column: Form Container (Matches Screenshot) */}
+          <div className="flex-1 flex flex-col justify-center px-6 py-8 sm:px-10 md:px-12 text-white">
+            {/* Header */}
+            <div className="mb-6">
+              <h2 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight">
+                {otpPending
+                  ? 'Verify Security Code'
+                  : tab === 'signup'
+                  ? 'Create an account'
+                  : 'Log in to your account'}
+              </h2>
+              <div className="text-sm text-gray-400 mt-1 flex items-center gap-1.5 flex-wrap">
+                {tab === 'signup' ? (
+                  <>
+                    <span>Already have an account?</span>
                     <button
-                      key={acc.email}
                       type="button"
-                      onClick={() => handleGoogleLogin(acc.email)}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        padding: '0.65rem 0.75rem',
-                        borderRadius: '8px',
-                        background: '#f4f7f8',
-                        border: '1px solid #dce5e7',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
+                      onClick={() => switchTab('login')}
+                      className="text-white hover:text-purple-300 font-medium underline underline-offset-2 transition cursor-pointer"
                     >
-                      <div
-                        style={{
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '50%',
-                          background: '#4b6572',
-                          color: '#ffffff',
-                          fontWeight: 700,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.85rem',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {acc.avatar}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span
-                          style={{
-                            fontSize: '0.84rem',
-                            fontWeight: 700,
-                            color: '#2c3e47',
-                            display: 'block',
-                          }}
-                        >
-                          {acc.name}
-                        </span>
-                        <span style={{ fontSize: '0.72rem', color: '#6c8590', display: 'block' }}>
-                          {acc.email}
-                        </span>
-                      </div>
+                      Log in
                     </button>
-                  ))}
-                </div>
+                  </>
+                ) : (
+                  <>
+                    <span>Don't have an account?</span>
+                    <button
+                      type="button"
+                      onClick={() => switchTab('signup')}
+                      className="text-white hover:text-purple-300 font-medium underline underline-offset-2 transition cursor-pointer"
+                    >
+                      Sign up
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
 
-                <div
-                  style={{
-                    marginTop: '1rem',
-                    paddingTop: '0.85rem',
-                    borderTop: '1px solid #e2eaec',
-                  }}
+            {/* Error & Message Alerts */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-200 text-xs sm:text-sm flex items-start gap-2.5"
+              >
+                <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
+                <div className="leading-snug">{error}</div>
+              </motion.div>
+            )}
+
+            {msg && !error && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-200 text-xs sm:text-sm flex items-start gap-2.5"
+              >
+                <Check size={16} className="text-purple-400 shrink-0 mt-0.5" />
+                <div className="leading-snug">{msg}</div>
+              </motion.div>
+            )}
+
+            {/* OTP Hint Helper Badge if available */}
+            {demoOtpHint && (
+              <div className="mb-4 p-2.5 rounded-lg bg-[#342e47] border border-purple-500/30 flex items-center justify-between text-xs">
+                <span className="text-gray-300">Quick OTP Code:</span>
+                <button
+                  type="button"
+                  onClick={() => setOtpCode(demoOtpHint)}
+                  className="px-2.5 py-1 rounded bg-[#7052db] hover:bg-[#6144cf] text-white font-mono font-bold tracking-widest transition cursor-pointer"
                 >
-                  <label
-                    style={{
-                      fontSize: '0.74rem',
-                      color: '#58727f',
-                      fontWeight: 600,
-                      display: 'block',
-                      marginBottom: '0.35rem',
-                    }}
-                  >
-                    Use another Google Email
-                  </label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {demoOtpHint} (Click to Fill)
+                </button>
+              </div>
+            )}
+
+            {/* Main Form */}
+            <form onSubmit={tab === 'signup' ? handleSignupSubmit : handleLoginSubmit} className="space-y-3.5">
+              {/* If OTP is pending */}
+              {otpPending ? (
+                <div className="space-y-4">
+                  <div className="text-xs text-gray-300">
+                    We sent a 6-digit confirmation code to{' '}
+                    <span className="text-purple-300 font-semibold">{maskedEmail}</span>.
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1.5 font-medium">6-Digit Code</label>
+                    <input
+                      type="text"
+                      name="otpCode"
+                      autoFocus
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="000000"
+                      className="w-full bg-[#342e47] border border-purple-500/50 focus:border-purple-400 focus:bg-[#39324e] text-white text-center font-mono text-2xl tracking-[0.5em] rounded-lg py-3 outline-none transition placeholder:text-gray-600"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-gray-400">Didn't receive code?</span>
+                    <button
+                      type="button"
+                      disabled={resendCooldown > 0 || loading}
+                      onClick={handleResendOtp}
+                      className="text-purple-300 hover:text-purple-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1"
+                    >
+                      <RefreshCw size={12} className={resendCooldown > 0 ? 'animate-spin' : ''} />
+                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Signup Fields: Name Inputs Side by Side */}
+                  {tab === 'signup' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <input
+                          type="text"
+                          name="first_name"
+                          value={formData.first_name}
+                          onChange={handleChange}
+                          placeholder="Fletcher"
+                          required
+                          className="w-full bg-[#342e47] border border-transparent focus:border-purple-400/80 focus:bg-[#39324e] text-white text-sm placeholder:text-gray-400 rounded-lg px-3.5 py-3 outline-none transition"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          name="last_name"
+                          value={formData.last_name}
+                          onChange={handleChange}
+                          placeholder="Last name"
+                          className="w-full bg-[#342e47] border border-transparent focus:border-purple-400/80 focus:bg-[#39324e] text-white text-sm placeholder:text-gray-400 rounded-lg px-3.5 py-3 outline-none transition"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Email Input */}
+                  <div>
                     <input
                       type="email"
-                      placeholder="your.email@gmail.com"
-                      value={customGoogleEmail}
-                      onChange={(e) => setCustomGoogleEmail(e.target.value)}
-                      style={{ ...underlineInputStyle, flex: 1, fontSize: '0.84rem' }}
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="Email"
+                      required
+                      className="w-full bg-[#342e47] border border-transparent focus:border-purple-400/80 focus:bg-[#39324e] text-white text-sm placeholder:text-gray-400 rounded-lg px-3.5 py-3 outline-none transition"
+                    />
+                  </div>
+
+                  {/* Password Input with Eye Icon */}
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder={tab === 'signup' ? 'Enter your password' : 'Enter your password'}
+                      required
+                      className="w-full bg-[#342e47] border border-transparent focus:border-purple-400/80 focus:bg-[#39324e] text-white text-sm placeholder:text-gray-400 rounded-lg px-3.5 py-3 pr-10 outline-none transition"
                     />
                     <button
                       type="button"
-                      onClick={() => customGoogleEmail && handleGoogleLogin(customGoogleEmail)}
-                      style={{
-                        padding: '0.45rem 0.9rem',
-                        borderRadius: '4px',
-                        background: '#4b6572',
-                        color: '#ffffff',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition cursor-pointer"
                     >
-                      Continue
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
-                </div>
+
+                  {/* Role Selector for Registration */}
+                  {tab === 'signup' && (
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1.5 font-medium">Select Account Role</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'VENDOR', label: 'Vendor' },
+                          { id: 'TENDER_MANAGER', label: 'Manager' },
+                          { id: 'EVALUATOR', label: 'Evaluator' },
+                        ].map((r) => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, role: r.id }))}
+                            className={`py-2 px-2 text-xs rounded-lg font-medium border transition cursor-pointer text-center ${
+                              formData.role === r.id
+                                ? 'bg-purple-600/30 border-purple-400 text-white shadow-sm'
+                                : 'bg-[#342e47]/60 border-white/5 text-gray-400 hover:text-white'
+                            }`}
+                          >
+                            {r.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Fill Test Accounts for Login */}
+                  {tab === 'login' && !formData.email && (
+                    <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                      <span className="text-[11px] text-gray-500">Demo Fill:</span>
+                      <button
+                        type="button"
+                        onClick={() => quickFillCredentials('admin@tenderx.io', 'Admin123!')}
+                        className="text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 transition cursor-pointer"
+                      >
+                        Admin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => quickFillCredentials('tenderx69@gmail.com', 'Admin123!')}
+                        className="text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 transition cursor-pointer"
+                      >
+                        TenderX Gmail
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => quickFillCredentials('iitsuryatej@gmail.com', 'Admin123!')}
+                        className="text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 transition cursor-pointer"
+                      >
+                        Vendor
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Terms & Conditions Checkbox (Matches Screenshot) */}
+                  {tab === 'signup' && (
+                    <div className="flex items-center gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setAgreeTerms(!agreeTerms)}
+                        className={`w-5 h-5 rounded flex items-center justify-center transition border cursor-pointer ${
+                          agreeTerms
+                            ? 'bg-white border-white text-black'
+                            : 'bg-[#342e47] border-white/20 text-transparent'
+                        }`}
+                      >
+                        <Check size={14} strokeWidth={3} />
+                      </button>
+                      <label
+                        onClick={() => setAgreeTerms(!agreeTerms)}
+                        className="text-xs text-gray-300 cursor-pointer select-none"
+                      >
+                        I agree to the{' '}
+                        <span className="underline hover:text-white transition">Terms & Conditions</span>
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Submit CTA Button (Vibrant Purple Solid) */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[#7052db] hover:bg-[#6144cf] text-white font-medium text-sm py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30 active:scale-[0.99] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : otpPending ? (
+                    <span>Verify Code & Continue</span>
+                  ) : tab === 'signup' ? (
+                    <span>Create account</span>
+                  ) : (
+                    <span>Log in</span>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {/* Divider: Or register with / Or login with */}
+            <div className="relative my-5">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/10" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-[#1e1b29] px-3 text-gray-400">
+                  {tab === 'signup' ? 'Or register with' : 'Or login with'}
+                </span>
               </div>
             </div>
-          )}
-        </div>
+
+            {/* Social Buttons: ONLY GOOGLE (Apple completely removed per user request) */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowGooglePicker(!showGooglePicker)}
+                className="w-full bg-[#2d283e]/80 hover:bg-[#38324e] border border-white/10 rounded-lg py-2.5 px-4 flex items-center justify-center gap-2.5 text-white text-sm font-medium transition cursor-pointer shadow-sm group"
+              >
+                <GoogleIcon />
+                <span>Google</span>
+              </button>
+
+              {/* Quick Google Account Selector Dropdown */}
+              <AnimatePresence>
+                {showGooglePicker && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-2.5 p-3 rounded-xl bg-[#282338] border border-purple-500/20 space-y-2 overflow-hidden"
+                  >
+                    <div className="text-[11px] text-gray-400 font-medium">Select Google account to continue:</div>
+                    <div className="space-y-1.5">
+                      {googleAccounts.map((acc) => (
+                        <button
+                          key={acc.email}
+                          type="button"
+                          onClick={() => handleGoogleLogin(acc.email)}
+                          className="w-full p-2 rounded-lg bg-white/5 hover:bg-white/10 text-left flex items-center justify-between text-xs transition cursor-pointer group"
+                        >
+                          <div>
+                            <div className="font-semibold text-white group-hover:text-purple-300">{acc.name}</div>
+                            <div className="text-[10px] text-gray-400">{acc.email}</div>
+                          </div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-medium">
+                            {acc.role}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="pt-1.5 border-t border-white/5 flex gap-2">
+                      <input
+                        type="email"
+                        placeholder="Or custom @gmail.com"
+                        value={customGoogleEmail}
+                        onChange={(e) => setCustomGoogleEmail(e.target.value)}
+                        className="flex-1 bg-[#1e1b29] border border-white/10 text-white text-xs px-2.5 py-1.5 rounded-lg outline-none focus:border-purple-400"
+                      />
+                      <button
+                        type="button"
+                        disabled={!customGoogleEmail || !customGoogleEmail.includes('@')}
+                        onClick={() => handleGoogleLogin(customGoogleEmail)}
+                        className="px-3 py-1.5 rounded-lg bg-[#7052db] hover:bg-[#6144cf] text-white text-xs font-medium disabled:opacity-50 transition"
+                      >
+                        Sign in
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </AnimatePresence>
   );
 }
