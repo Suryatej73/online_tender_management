@@ -636,13 +636,9 @@ class BidAccessLog(models.Model):
             resource_id=None, resource_reference=None, outcome='SUCCESS',
             metadata=None, request=None, correlation_id=None):
         """Helper to create an audit log entry."""
-        ip = None
-        user_agent = None
-        if request:
-            ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
-            if ip and ',' in ip:
-                ip = ip.split(',')[0].strip()
-            user_agent = request.META.get('HTTP_USER_AGENT', 'Browser')
+        from core.utils import get_client_ip
+        ip = get_client_ip(request) if request else '127.0.0.1'
+        user_agent = request.META.get('HTTP_USER_AGENT', 'Browser') if request else 'Browser'
 
         actor_name = None
         actor_role = None

@@ -239,15 +239,12 @@ class VendorDocumentService:
         return count
 
 
+from core.utils import get_client_ip
+
 def create_audit_log(vendor=None, user=None, action="", description="", request=None):
     """Create an audit log entry."""
-    ip = None
-    user_agent = None
-    if request:
-        ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
-        if ip and ',' in ip:
-            ip = ip.split(',')[0].strip()
-        user_agent = request.META.get('HTTP_USER_AGENT', 'Browser')
+    ip = get_client_ip(request) if request else '127.0.0.1'
+    user_agent = request.META.get('HTTP_USER_AGENT', 'Browser') if request else 'Browser'
 
     user_name = None
     if user and hasattr(user, 'full_name'):

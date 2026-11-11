@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.contrib.auth import authenticate, get_user_model
 from django.db.models import Q
+from core.utils import get_client_ip
 
 try:
     from rest_framework.views import APIView
@@ -90,15 +91,8 @@ def log_activity(user, action, resource=None, details=None, request=None, status
     if not user or not hasattr(user, 'id'):
         return
     try:
-        ip = None
-        user_agent = None
-        if request:
-            ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
-            if ip and ',' in ip:
-                ip = ip.split(',')[0].strip()
-            if ip and ':' in ip and '.' in ip:
-                ip = ip.split(':')[0]
-            user_agent = request.META.get('HTTP_USER_AGENT', 'Browser')
+        ip = get_client_ip(request) if request else '127.0.0.1'
+        user_agent = request.META.get('HTTP_USER_AGENT', 'Browser') if request else 'Browser'
 
         UserActivity.objects.create(
             user=user,
@@ -140,12 +134,8 @@ def record_user_session(user, request, refresh_jti):
     if not user or not hasattr(user, 'id'):
         return
     try:
-        ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
-        if ip and ',' in ip:
-            ip = ip.split(',')[0].strip()
-        if ip and ':' in ip and '.' in ip:
-            ip = ip.split(':')[0]
-        user_agent = request.META.get('HTTP_USER_AGENT', 'Browser Agent')
+        ip = get_client_ip(request) if request else '127.0.0.1'
+        user_agent = request.META.get('HTTP_USER_AGENT', 'Browser Agent') if request else 'Browser Agent'
         
         jti = str(refresh_jti) if refresh_jti else str(uuid.uuid4())
         if UserSession.objects.filter(refresh_token_jti=jti).exists():
@@ -324,7 +314,7 @@ class LoginView(APIView):
             email = serializer.validated_data.get('email', data.get('email'))
             password = serializer.validated_data.get('password', data.get('password'))
 
-            ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1'))
+            ip = get_client_ip(request)
             user_agent = request.META.get('HTTP_USER_AGENT', 'Browser')
 
             user = authenticate(request, username=email, password=password)
@@ -334,16 +324,25 @@ class LoginView(APIView):
                     user = try_user
 
             if not user:
-                LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=False, failure_reason="Invalid credentials")
+                try:
+                    LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=False, failure_reason="Invalid credentials")
+                except Exception as log_err:
+                    print(f"[WARN] Failed to record login attempt: {log_err}")
                 return Response({"error": "Invalid email address or password."}, status=status.HTTP_401_UNAUTHORIZED)
 
             if user.status == UserStatus.SUSPENDED:
-                LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=False, failure_reason="Account suspended")
+                try:
+                    LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=False, failure_reason="Account suspended")
+                except Exception as log_err:
+                    print(f"[WARN] Failed to record suspended attempt: {log_err}")
                 return Response({"error": "Account is suspended. Please contact administrator."}, status=status.HTTP_403_FORBIDDEN)
 
-            LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=True)
-            user.last_login_ip = ip
-            user.save(update_fields=['last_login_ip'])
+            try:
+                LoginAttempt.objects.create(email=email, ip_address=ip, user_agent=user_agent, was_successful=True)
+                user.last_login_ip = ip
+                user.save(update_fields=['last_login_ip'])
+            except Exception as log_err:
+                print(f"[WARN] Failed to record successful attempt/IP: {log_err}")
 
             # Direct instant authentication for Admin and Auditor compliance roles
             if user.role in [UserRole.SUPER_ADMIN, UserRole.AUDITOR, UserRole.ORG_ADMIN] or email.lower() == 'admin@tenderx.io':
@@ -370,6 +369,8 @@ class LoginView(APIView):
                 "demo_otp_hint": otp_code
             }, status=status.HTTP_200_OK)
         except Exception as e:
+            import logging
+            logging.getLogger('tenderx.auth').error(f"Login error for {data.get('email', 'unknown') if 'data' in locals() else 'unknown'}: {e}", exc_info=True)
             if 'OperationalError' in type(e).__name__ or 'psycopg2' in str(type(e)):
                 return Response({"error": _format_db_error(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             raise

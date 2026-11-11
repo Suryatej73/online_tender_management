@@ -181,14 +181,18 @@ Official e-Procurement Platform
             if dev_email not in recipients:
                 recipients.append(dev_email)
 
-        try:
-            msg = EmailMultiAlternatives(subject, text_content, from_email, recipients)
-            msg.attach_alternative(html_content, "text/html")
-            msg.send(fail_silently=False)
-            print(f"[OTP SUCCESS] Dispatched OTP code to {recipients}")
-        except Exception as e:
-            # Fallback for dev mode console backend or offline network
-            print(f"[OTP DEV FALLBACK] Sent OTP to {recipients}: {otp_code} (Error sending email: {e})")
+        def _send_otp_email_thread():
+            try:
+                msg = EmailMultiAlternatives(subject, text_content, from_email, recipients)
+                msg.attach_alternative(html_content, "text/html")
+                msg.send(fail_silently=False)
+                print(f"[OTP SUCCESS] Dispatched OTP code to {recipients}")
+            except Exception as e:
+                # Fallback for dev mode console backend or offline network
+                print(f"[OTP DEV FALLBACK] Sent OTP to {recipients}: {otp_code} (Error sending email: {e})")
+
+        import threading
+        threading.Thread(target=_send_otp_email_thread, daemon=True).start()
 
         return otp_obj, masked, otp_code
 

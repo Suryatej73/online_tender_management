@@ -63,29 +63,31 @@ def get_request_data(request):
         return {}
 
 
+from core.utils import get_client_ip
+
 def log_platform_audit(user, action, entity_type, entity_id=None, old_value=None, new_value=None, description=None, request=None):
     """Utility to log append-only administrative audit records."""
     user_email = user.email if (user and hasattr(user, 'email')) else 'System'
     user_role = user.role if (user and hasattr(user, 'role')) else 'ADMIN'
-    ip = None
-    user_agent = None
-    if request:
-        ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR'))
-        user_agent = request.META.get('HTTP_USER_AGENT')
+    ip = get_client_ip(request) if request else '127.0.0.1'
+    user_agent = request.META.get('HTTP_USER_AGENT', 'Browser') if request else 'Browser'
 
-    PlatformAuditLog.objects.create(
-        user=user if (user and hasattr(user, 'id')) else None,
-        user_email=user_email,
-        user_role=user_role,
-        action=action,
-        entity_type=entity_type,
-        entity_id=str(entity_id) if entity_id else None,
-        old_value=old_value or {},
-        new_value=new_value or {},
-        description=description,
-        ip_address=ip,
-        user_agent=user_agent
-    )
+    try:
+        PlatformAuditLog.objects.create(
+            user=user if (user and hasattr(user, 'id')) else None,
+            user_email=user_email,
+            user_role=user_role,
+            action=action,
+            entity_type=entity_type,
+            entity_id=str(entity_id) if entity_id else None,
+            old_value=old_value or {},
+            new_value=new_value or {},
+            description=description,
+            ip_address=ip,
+            user_agent=user_agent
+        )
+    except Exception as e:
+        print(f"[WARN] Failed to log platform audit: {e}")
 
 
 # ──────────────────────────────────────────────

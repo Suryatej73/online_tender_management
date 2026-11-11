@@ -24,6 +24,7 @@ class ApiCsrfExemptMiddleware(MiddlewareMixin):
         if path.startswith('/api/'):
             from django.http import JsonResponse
             from django.db import DatabaseError
+            from django.conf import settings
             import logging
             logging.getLogger('tenderx.api').error(f"Unhandled API error on {path}: {str(exception)}", exc_info=True)
             if isinstance(exception, DatabaseError):
@@ -35,8 +36,13 @@ class ApiCsrfExemptMiddleware(MiddlewareMixin):
             else:
                 status_code = 500
                 message = 'An unexpected server error occurred.'
-            return JsonResponse({
+            
+            payload = {
                 "success": False,
                 "message": message,
-            }, status=status_code)
+            }
+            if getattr(settings, 'DEBUG', False):
+                payload["detail"] = str(exception)
+                payload["error"] = str(exception)
+            return JsonResponse(payload, status=status_code)
         return None
