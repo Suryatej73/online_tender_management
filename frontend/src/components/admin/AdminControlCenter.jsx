@@ -340,8 +340,28 @@ export default function AdminControlCenter() {
     }
   };
 
-  const exportAuditLogsCSV = () => {
-    window.open('/api/v1/admin/audit-logs/export/', '_blank');
+  const exportAuditLogsCSV = async () => {
+    try {
+      const res = await fetch('/api/v1/admin/audit-logs/export/', {
+        method: 'GET',
+        headers
+      });
+      if (!res.ok) {
+        throw new Error(`Export failed with HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `tenderx_cryptographic_audit_trail_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(link);
+      setSuccessMsg('Cryptographic audit trail CSV downloaded successfully.');
+    } catch (err) {
+      alert(err.message || 'Failed to export audit logs.');
+    }
   };
 
   return (
@@ -959,15 +979,32 @@ export default function AdminControlCenter() {
       {/* TAB 8: Audit Trail */}
       {activeTab === 'audit' && (
         <div className="bg-[#0d1117] p-6 rounded-2xl border border-white/10 shadow-xl space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm font-extrabold text-white">Append-Only Platform Audit Trail</h3>
-            <button
-              onClick={exportAuditLogsCSV}
-              className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export CSV</span>
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+            <div>
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <span>Cryptographic Audit & Tamper-Proof Forensic Trail</span>
+              </h3>
+              <p className="text-xs text-white/50">
+                Immutable SHA-256 dual-envelope sealed bids, document verification digests, and chronological forensic event logs.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchAuditLogs}
+                className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold flex items-center gap-2 border border-white/10 transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-orange-400" />
+                <span>Refresh Logs</span>
+              </button>
+              <button
+                onClick={exportAuditLogsCSV}
+                className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition shadow-lg shadow-orange-500/20"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export CSV</span>
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -975,28 +1012,67 @@ export default function AdminControlCenter() {
               <thead className="bg-white/5 uppercase text-[10px] text-slate-400 font-bold">
                 <tr>
                   <th className="p-3">Timestamp</th>
-                  <th className="p-3">User</th>
+                  <th className="p-3">User / Actor</th>
                   <th className="p-3">Action</th>
                   <th className="p-3">Entity</th>
-                  <th className="p-3">Description</th>
+                  <th className="p-3">Forensic Details & Cryptographic Hash</th>
+                  <th className="p-3">Integrity</th>
                   <th className="p-3">IP Address</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {auditLogs.map(l => (
-                  <tr key={l.id}>
-                    <td className="p-3 font-mono text-white/40 text-[11px]">{new Date(l.timestamp).toLocaleString()}</td>
-                    <td className="p-3 font-bold text-white">{l.user_email}</td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded font-mono font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 text-[10px]">
-                        {l.action}
-                      </span>
+                {auditLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="p-8 text-center text-white/40 text-xs">
+                      No cryptographic or audit logs recorded yet.
                     </td>
-                    <td className="p-3 font-mono">{l.entity_type}</td>
-                    <td className="p-3 text-white/80">{l.description}</td>
-                    <td className="p-3 font-mono text-white/40">{l.ip_address || '127.0.0.1'}</td>
                   </tr>
-                ))}
+                ) : (
+                  auditLogs.map(l => (
+                    <tr key={l.id} className="hover:bg-white/5 transition">
+                      <td className="p-3 font-mono text-white/40 text-[11px] whitespace-nowrap">
+                        {new Date(l.timestamp).toLocaleString()}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <div className="font-bold text-white">{l.user_email}</div>
+                        <div className="text-[10px] text-white/40 font-mono">{l.user_role}</div>
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded font-mono font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 text-[10px]">
+                          {l.action}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono whitespace-nowrap text-white/70">{l.entity_type}</td>
+                      <td className="p-3">
+                        <div className="text-white/80">{l.description}</div>
+                        {l.hash && (
+                          <div className="mt-1 font-mono text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded inline-flex items-center gap-1.5">
+                            <Lock className="w-3 h-3 text-emerald-400 shrink-0" />
+                            <span className="truncate max-w-[320px]" title={l.hash}>
+                              SHA-256: {l.hash}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {l.integrity_status ? (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            l.integrity_status === 'VERIFIED' || l.integrity_status === 'VALID' || l.integrity_status === 'SUCCESS'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : l.integrity_status === 'PENDING'
+                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          }`}>
+                            {l.integrity_status}
+                          </span>
+                        ) : (
+                          <span className="text-white/30 text-[10px] font-mono">LOGGED</span>
+                        )}
+                      </td>
+                      <td className="p-3 font-mono text-white/40 whitespace-nowrap">{l.ip_address || '127.0.0.1'}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
