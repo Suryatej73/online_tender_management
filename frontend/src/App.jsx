@@ -25,8 +25,47 @@ import { vendorsApi } from './api/vendorsApi';
 import { bidsApi } from './api/bidsApi';
 import { 
   ArrowLeft, LayoutDashboard, User, Shield, KeyRound,
-  FileText, Gavel, Building2, FileCheck, CheckCircle2
+  FileText, Gavel, Building2, FileCheck, CheckCircle2, AlertTriangle
 } from 'lucide-react';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[400px] flex flex-col items-center justify-center p-8 bg-[#0b0e14]/90 rounded-2xl border border-red-500/30 text-center">
+          <div className="w-12 h-12 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center mb-4">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">Something went wrong in this module</h3>
+          <p className="text-xs text-slate-400 max-w-md mb-4">{this.state.error?.message || 'An unexpected rendering error occurred.'}</p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              if (this.props.onReset) this.props.onReset();
+            }}
+            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition"
+          >
+            Reset View
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function TenderXApp() {
   const { user, logout } = useAuth();
@@ -187,7 +226,7 @@ function TenderXApp() {
 
         {/* Scrollable Working Content Area */}
         <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
-          
+          <ErrorBoundary key={activeTab} onReset={() => setActiveTab('dashboard')}>
           {/* TAB 1: Executive Command Center Dashboard */}
           {activeTab === 'dashboard' && (
             <PurityDashboardView
@@ -316,6 +355,7 @@ function TenderXApp() {
               </div>
             </div>
           )}
+          </ErrorBoundary>
         </main>
       </div>
 

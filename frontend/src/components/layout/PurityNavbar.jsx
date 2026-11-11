@@ -199,7 +199,7 @@ export default function PurityNavbar({
       case 'dashboard': return 'Command Center';
       case 'tenders': return 'Tenders & BOQs';
       case 'bids': return 'Bids & Submissions';
-      case 'vendors': return user?.role === 'VENDOR' ? 'Vendor 360 & Awarded Work' : 'Vendor Management';
+      case 'vendors': return currentUser?.role === 'VENDOR' ? 'Vendor 360 & Awarded Work' : 'Vendor Management';
       case 'documents': return 'Documents';
       case 'evaluations': return 'Evaluations & Awards';
       case 'admin_governance': return 'Admin Governance';
