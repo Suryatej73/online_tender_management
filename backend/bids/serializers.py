@@ -232,10 +232,12 @@ class BidListSerializer(serializers.ModelSerializer):
             BidStatus.REJECTED,
             BidStatus.DISQUALIFIED,
         ]:
+            fin = obj.financial_bid
             return {
-                'final_amount': str(obj.financial_bid.final_amount),
-                'currency': obj.financial_bid.currency,
-                'discount_percentage': str(obj.financial_bid.discount_percentage),
+                'final_amount': str(fin.final_amount),
+                'currency': fin.currency,
+                'discount': str(getattr(fin, 'discount', 0)),
+                'discount_percentage': str(getattr(fin, 'discount', 0)),
             }
         return None
 
