@@ -9,6 +9,8 @@
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5.0-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Vercel Deployment](https://img.shields.io/badge/Frontend-Vercel%20Live-black?style=for-the-badge&logo=vercel&logoColor=white)](https://online-tender-management.vercel.app)
+[![Render Backend](https://img.shields.io/badge/Backend-Render%20Live-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://online-tender-management.onrender.com)
 [![Selenium](https://img.shields.io/badge/Selenium-Automated%20E2E-43B02A?style=for-the-badge&logo=selenium&logoColor=white)](https://www.selenium.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
@@ -17,6 +19,13 @@
   Complies with <b>CPPP</b>, <b>Government e-Marketplace (GeM)</b>, and <b>World Bank e-Procurement Guidelines</b>.
 </p>
 
+### 🌐 Live Production Deployments
+| Tier | Platform | Live Production URL | Status |
+| :--- | :--- | :--- | :--- |
+| **Frontend UI** | **Vercel** (React 18 + Vite) | **[https://online-tender-management.vercel.app](https://online-tender-management.vercel.app)** | ![Active](https://img.shields.io/badge/Status-Live%20Online-success?style=flat-square) |
+| **Backend REST API** | **Render** (Django 4.2 REST + Supabase) | **[https://online-tender-management.onrender.com](https://online-tender-management.onrender.com)** | ![Active](https://img.shields.io/badge/Status-Live%20Online-success?style=flat-square) |
+| **System Health Check** | Render Gateway | **[https://online-tender-management.onrender.com/api/v1/health/](https://online-tender-management.onrender.com/api/v1/health/)** | ![Healthy](https://img.shields.io/badge/Health-200%20OK-blue?style=flat-square) |
+
 [Explore Documentation](docs/modules/README.md) • [Software Requirements Specification (SRS)](docs/SRS.md) • [API Reference](#-restful-api-endpoints) • [Quick Start](#-quick-start)
 
 </div>
@@ -24,6 +33,7 @@
 ---
 
 ## 📑 Table of Contents
+- [Live Production Deployments](#-live-production-deployments)
 - [Executive Overview](#-executive-overview)
 - [System Architecture](#-system-architecture)
 - [All 10 Engineering Modules](#-all-10-engineering-modules)
@@ -37,6 +47,19 @@
   - [Option B: Local Development Setup](#option-b-local-development-setup)
 - [Repository Directory Structure](#-repository-directory-structure)
 - [License & Contributions](#-license--contributions)
+
+---
+
+## 🌐 Live Production Deployments
+
+The application is deployed across cloud production infrastructure with automated continuous deployment:
+
+- **Frontend URL (Vercel)**: **[https://online-tender-management.vercel.app](https://online-tender-management.vercel.app)**  
+  Built with React 18, Vite 5, TailwindCSS, and Lucide React. Served globally on Vercel's Edge Network with client-side SPA routing and automated reverse-proxying.
+- **Backend REST API (Render)**: **[https://online-tender-management.onrender.com](https://online-tender-management.onrender.com)**  
+  Powered by Django REST Framework, Gunicorn, and hosted on Render. Connects to a high-availability cloud PostgreSQL database on Supabase.
+- **System Health Monitor**: **[https://online-tender-management.onrender.com/api/v1/health/](https://online-tender-management.onrender.com/api/v1/health/)**  
+  Real-time endpoint reporting status of Django, PostgreSQL, and cache infrastructure.
 
 ---
 
