@@ -154,10 +154,16 @@ def record_user_session(user, request, refresh_jti):
         print(f"[WARN] Failed to record user session: {e}")
 
 
+_PERMISSIONS_SEEDED = False
+
 # Seed initial default permissions & roles if empty
 def seed_default_permissions():
+    global _PERMISSIONS_SEEDED
+    if _PERMISSIONS_SEEDED:
+        return
     try:
         if Permission.objects.exists():
+            _PERMISSIONS_SEEDED = True
             return
 
         permissions_list = [

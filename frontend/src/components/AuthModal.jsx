@@ -170,7 +170,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         setTimeout(onClose, 800);
       }
     } catch (err) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        setError('Server is waking up from sleep or connecting. Please wait a few seconds and try again.');
+      } else {
+        setError(err.message || 'Login failed. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }
@@ -224,7 +228,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         setTimeout(onClose, 1000);
       }
     } catch (err) {
-      setError(err.message || 'Registration failed. Please check your details.');
+      if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        setError('Server is waking up from sleep or connecting. Please wait a few seconds and try again.');
+      } else {
+        setError(err.message || 'Registration failed. Please check your details.');
+      }
     } finally {
       setLoading(false);
     }
@@ -255,7 +263,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
         setTimeout(onClose, 700);
       }
     } catch (err) {
-      setError(err.message || 'Invalid or expired verification code.');
+      if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        setError('Server is waking up from sleep or connecting. Please wait a few seconds and try again.');
+      } else {
+        setError(err.message || 'Invalid or expired verification code.');
+      }
     } finally {
       setLoading(false);
     }

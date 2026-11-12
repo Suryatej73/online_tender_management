@@ -131,10 +131,12 @@ function TenderXApp() {
   }, []);
 
   useEffect(() => {
+    // Only fetch dashboard and start background polling if user is logged in
+    if (!user) return;
     loadDashboard();
-    const refreshTimer = window.setInterval(loadDashboard, 30000);
+    const refreshTimer = window.setInterval(loadDashboard, 60000);
     return () => window.clearInterval(refreshTimer);
-  }, [loadDashboard]);
+  }, [user, loadDashboard]);
 
   // Role-based access guard: Automatically redirect unauthorized tabs
   useEffect(() => {
