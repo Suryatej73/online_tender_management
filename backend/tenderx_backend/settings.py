@@ -242,6 +242,8 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
+    'https://online-tender-management.vercel.app',
+    'https://online-tender-management.onrender.com',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:5174',
@@ -250,10 +252,18 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://online-tender-management.onrender.com',
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+    r"^https://.*\.onrender\.com$",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    'https://online-tender-management.vercel.app',
+    'https://*.vercel.app',
+    'https://online-tender-management.onrender.com',
+    'https://*.onrender.com',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:5174',
@@ -262,8 +272,6 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://*.vercel.app',
-    'https://online-tender-management.onrender.com',
 ]
 
 REDIS_URL = os.getenv('REDIS_URL', '')
